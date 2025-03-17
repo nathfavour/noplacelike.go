@@ -1,4 +1,14 @@
-// ...existing code...
+package api
+
+import (
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/gin-gonic/gin"
+	"github.com/nathfavour/noplacelike.go/config"
+)
 
 // redirectToDocumentation redirects to API documentation
 func (a *API) redirectToDocumentation(c *gin.Context) {

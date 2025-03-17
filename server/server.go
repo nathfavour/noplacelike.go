@@ -12,8 +12,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/nathfavour/noplacelike.go/config"
 	"github.com/mdp/qrterminal/v3"
+	"github.com/nathfavour/noplacelike.go/api"
+	"github.com/nathfavour/noplacelike.go/config"
 )
 
 // Server represents the NoPlaceLike server
