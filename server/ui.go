@@ -208,13 +208,7 @@ const homeTemplate = `<!DOCTYPE html>
                 const response = await fetch('/api/files');
                 const data = await response.json();
                 const fileList = document.getElementById('fileList');
-                fileList.innerHTML = data.files.map(file => `
-                    <div class="file-item">
-                        <span>` + file + `</span>
-                        <button onclick="downloadFile('` + file + `')" 
-                                class="link-button">Download</button>
-                    </div>
-                `).join('');
+                fileList.innerHTML = data.files.map(file => "<div class=\"file-item\"><span>" + file + "</span><button onclick=\"downloadFile('" + file + "')\" class=\"link-button\">Download</button></div>").join('');
             } catch (error) {
                 console.error('Error updating file list:', error);
             }
@@ -291,19 +285,15 @@ const homeTemplate = `<!DOCTYPE html>
                 let html = '';
                 // data.files is an object: {folder1: [files], folder2: [files], ...}
                 for (const [dir, files] of Object.entries(data.files)) {
-                    html += `<h5>Directory: ` + dir + `</h5>`;
+                    html += "<h5>Directory: " + dir + "</h5>";
                     if (files && files.length) {
-                        html += `<table>
-                                    <tr><th>File</th><th>Action</th></tr>`;
+                        html += "<table><tr><th>File</th><th>Action</th></tr>";
                         files.forEach(file => {
-                            html += `<tr>
-                                        <td>` + file + `</td>
-                                        <td><button class="button" onclick="streamAudio('` + file + `')">Stream</button></td>
-                                    </tr>`;
+                            html += "<tr><td>" + file + "</td><td><button class=\"button\" onclick=\"streamAudio('" + file + "')\">Stream</button></td></tr>";
                         });
-                        html += `</table>`;
+                        html += "</table>";
                     } else {
-                        html += `<p>No files in this directory.</p>`;
+                        html += "<p>No files in this directory.</p>";
                     }
                 }
                 container.innerHTML = html;
@@ -483,7 +473,6 @@ const adminTemplate = `<!DOCTYPE html>
     <header class="admin-header">
         <h1>noplacelike Server Administration</h1>
     </header>
-
     <main class="main-content">
         <section class="section">
             <h2>Audio Streaming Directories</h2>
@@ -491,7 +480,6 @@ const adminTemplate = `<!DOCTYPE html>
                 <input type="text" id="newDir" placeholder="Enter directory path">
                 <button class="button" onclick="addDirectory()">Add Directory</button>
             </div>
-            
             <div class="scroll-container">
                 <table class="dir-table">
                     <thead>
@@ -507,7 +495,6 @@ const adminTemplate = `<!DOCTYPE html>
                 </table>
             </div>
         </section>
-
         <section class="section">
             <h2>Current Audio Files</h2>
             <div class="scroll-container" id="audioFilesList">
@@ -522,15 +509,7 @@ const adminTemplate = `<!DOCTYPE html>
                 const res = await fetch('/admin/dirs');
                 const data = await res.json();
                 const tbody = document.getElementById('dirList');
-                tbody.innerHTML = data.dirs.map(dir => `
-                    <tr>
-                        <td>` + dir + `</td>
-                        <td>` + checkDirStatus(dir) + `</td>
-                        <td>
-                            <button class="button" onclick="removeDirectory('` + dir + `')">Remove</button>
-                        </td>
-                    </tr>
-                `).join('');
+                tbody.innerHTML = data.dirs.map(dir => "<tr><td>" + dir + "</td><td>" + checkDirStatus(dir) + "</td><td><button class=\"button\" onclick=\"removeDirectory('" + dir + "')\">Remove</button></td></tr>").join('');
             } catch (error) {
                 console.error('Error loading directories:', error);
             }
@@ -544,7 +523,6 @@ const adminTemplate = `<!DOCTYPE html>
             const input = document.getElementById('newDir');
             const dir = input.value.trim();
             if (!dir) return;
-
             try {
                 const res = await fetch('/admin/dirs', {
                     method: 'POST',
