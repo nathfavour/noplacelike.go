@@ -503,14 +503,13 @@ const apiDocsTemplate = `<!DOCTYPE html>
                     categoryDiv.className = 'category';
                     categoryDiv.id = slugify(category.name);
                     
-                    categoryDiv.innerHTML = `
-                        <div class="category-header">
-                            <h2>` + category.name + `</h2>
-                        </div>
-                        <div class="category-description">
-                            <p>` + category.description + `</p>
-                        </div>
-                    `;
+                    categoryDiv.innerHTML = 
+                        '<div class="category-header">' +
+                        '<h2>' + category.name + '</h2>' +
+                        '</div>' +
+                        '<div class="category-description">' +
+                        '<p>' + category.description + '</p>' +
+                        '</div>';
                     
                     // Add endpoints
                     category.endpoints.forEach(endpoint => {
@@ -519,77 +518,70 @@ const apiDocsTemplate = `<!DOCTYPE html>
                         endpointDiv.className = 'endpoint';
                         endpointDiv.id = endpointId;
                         
-                        let endpointContent = `
-                            <div class="endpoint-header">
-                                <span class="http-method ` + endpoint.method.toLowerCase() + `">` + endpoint.method + `</span>
-                                <span class="endpoint-path">` + endpoint.path + `</span>
-                            </div>
-                            <div class="endpoint-content">
-                                <p>` + endpoint.description + `</p>
-                        `;
+                        let endpointContent = 
+                            '<div class="endpoint-header">' +
+                            '<span class="http-method ' + endpoint.method.toLowerCase() + '">' + endpoint.method + '</span>' +
+                            '<span class="endpoint-path">' + endpoint.path + '</span>' +
+                            '</div>' +
+                            '<div class="endpoint-content">' +
+                            '<p>' + endpoint.description + '</p>';
                         
                         // Parameters
                         if (endpoint.parameters && Object.keys(endpoint.parameters).length > 0) {
-                            endpointContent += `
-                                <div class="endpoint-section">
-                                    <h4>Parameters</h4>
-                                    <table>
-                                        <thead>
-                                            <tr>
-                                                <th>Name</th>
-                                                <th>Description</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                            `;
+                            endpointContent += 
+                                '<div class="endpoint-section">' +
+                                '<h4>Parameters</h4>' +
+                                '<table>' +
+                                '<thead>' +
+                                '<tr>' +
+                                '<th>Name</th>' +
+                                '<th>Description</th>' +
+                                '</tr>' +
+                                '</thead>' +
+                                '<tbody>';
                             
                             for (const [param, desc] of Object.entries(endpoint.parameters)) {
-                                endpointContent += `
-                                    <tr>
-                                        <td><code>` + param + `</code></td>
-                                        <td>` + desc + `</td>
-                                    </tr>
-                                `;
+                                endpointContent += 
+                                    '<tr>' +
+                                    '<td><code>' + param + '</code></td>' +
+                                    '<td>' + desc + '</td>' +
+                                    '</tr>';
                             }
                             
-                            endpointContent += `
-                                        </tbody>
-                                    </table>
-                                </div>
-                            `;
+                            endpointContent += 
+                                '</tbody>' +
+                                '</table>' +
+                                '</div>';
                         }
                         
                         // Request Body
                         if (endpoint.requestBody && Object.keys(endpoint.requestBody).length > 0) {
-                            endpointContent += `
-                                <div class="endpoint-section">
-                                    <h4>Request Body</h4>
-                                    <div class="code-block">` + stringify(endpoint.requestBody) + `</div>
-                                </div>
-                            `;
+                            endpointContent += 
+                                '<div class="endpoint-section">' +
+                                '<h4>Request Body</h4>' +
+                                '<div class="code-block">' + stringify(endpoint.requestBody) + '</div>' +
+                                '</div>';
                         }
                         
                         // Response
                         if (endpoint.response && Object.keys(endpoint.response).length > 0) {
-                            endpointContent += `
-                                <div class="endpoint-section">
-                                    <h4>Response</h4>
-                                    <div class="code-block">` + stringify(endpoint.response) + `</div>
-                                </div>
-                            `;
+                            endpointContent += 
+                                '<div class="endpoint-section">' +
+                                '<h4>Response</h4>' +
+                                '<div class="code-block">' + stringify(endpoint.response) + '</div>' +
+                                '</div>';
                         }
                         
                         // Example
                         if (endpoint.example) {
-                            endpointContent += `
-                                <div class="endpoint-section">
-                                    <h4>Example</h4>
-                                    <div class="code-block">` + endpoint.example + `</div>
-                                </div>
-                            `;
+                            endpointContent += 
+                                '<div class="endpoint-section">' +
+                                '<h4>Example</h4>' +
+                                '<div class="code-block">' + endpoint.example + '</div>' +
+                                '</div>';
                         }
                         
-                        endpointContent += `</div>`;
+                        endpointContent += '</div>';
                         endpointDiv.innerHTML = endpointContent;
                         categoryDiv.appendChild(endpointDiv);
                     });
