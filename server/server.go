@@ -25,33 +25,31 @@ type Server struct {
 	clipboard string // In-memory clipboard storage
 }
 
-// NewServer creates a new server with the given configuration
-func NewServer(cfg *config.Config) *Server {
-	router := gin.Default()
-	
-	// Create middleware for cross-origin requests
-	router.Use(func(c *gin.Context) {
-		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(204)
-			return
-		}
-		
-		c.Next()
-	})
-	
-	return &Server{
-		router: router,
-		config: cfg,
-	}
+// NewServer creates a new HTTP server
+func NewServer(config *config.Config) *Server {
+    // Initialize server without creating directories
+    server := &Server{
+        config: config,
+        router: gin.Default(),
+    }
+    
+    // Initialize routes
+    server.setupRoutes()
+    
+    return server
 }
 
 // Start starts the server
-func (s *Server) Start() error {
-	return s.server.ListenAndServe()
+func (s *Server) Start() {
+    // Create address string
+    addr := fmt.Sprintf("%s:%d", s.config.Host, s.config.Port)
+    
+    // Start the server
+    fmt.Printf("🚀 Server running at http://%s\n", addr)
+    if err := s.router.Run(addr); err != nil {
+        fmt.Printf("❌ Server failed to start: %v\n", err)
+        os.Exit(1)
+    }
 }
 
 // Shutdown gracefully shuts down the server
@@ -64,7 +62,7 @@ func (s *Server) Shutdown() {
 	}
 }
 
-// setupRoutes configures all routes for the server
+// setupRoutes sets up the API routes
 func (s *Server) setupRoutes() {
 	// Initialize API handler
 	apiHandler := api.New(s.config)
