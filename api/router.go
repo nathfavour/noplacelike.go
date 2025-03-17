@@ -10,6 +10,111 @@ import (
 	"github.com/nathfavour/noplacelike.go/config"
 )
 
+// API represents the main API handler
+type API struct {
+	config     *config.Config
+	clipboard  *ClipboardAPI
+	filesystem *FileSystemAPI
+	shell      *ShellAPI
+	system     *SystemAPI
+	media      *MediaAPI
+}
+
+// New creates a new API instance
+func New(cfg *config.Config) *API {
+	return &API{
+		config:     cfg,
+		clipboard:  NewClipboardAPI(cfg),
+		filesystem: NewFileSystemAPI(cfg),
+		shell:      NewShellAPI(cfg),
+		system:     NewSystemAPI(cfg),
+		media:      NewMediaAPI(cfg),
+	}
+}
+
+// SetupRoutes configures all API routes
+func (a *API) SetupRoutes(router *gin.Engine) {
+	// Initialize API documentation
+	InitDocs()
+
+	// Base API route group
+	api := router.Group("/api")
+	{
+		// API documentation
+		api.GET("/", a.redirectToDocumentation)
+		api.GET("/docs", ServeAPIDocsUI)
+		
+		// Version 1 API
+		v1 := api.Group("/v1")
+		{
+			// API docs
+			v1.GET("/docs", ServeAPIDocsUI)
+			v1.GET("/docs/json", ServeAPIDocsJSON)
+
+			// Clipboard endpoints
+			clipboard := v1.Group("/clipboard")
+			{
+				clipboard.GET("", a.clipboard.GetClipboard)
+				clipboard.POST("", a.clipboard.SetClipboard)
+				clipboard.GET("/history", a.clipboard.GetClipboardHistory)
+				clipboard.DELETE("/history", a.clipboard.ClearClipboardHistory)
+			}
+
+			// File operations
+			files := v1.Group("/files")
+			{
+				files.GET("", a.listFiles)
+				files.POST("", a.uploadFile)
+				files.GET("/:filename", a.downloadFile)
+				files.DELETE("/:filename", a.deleteFile)
+			}
+
+			// Filesystem operations
+			filesystem := v1.Group("/filesystem")
+			{
+				filesystem.GET("/list", a.filesystem.ListDirectory)
+				filesystem.GET("/content", a.filesystem.GetFileContent)
+				// Additional filesystem endpoints could be added here
+			}
+
+			// Shell command execution
+			shell := v1.Group("/shell")
+			{
+				shell.POST("/exec", a.shell.ExecuteCommand)
+				shell.GET("/stream", a.shell.StreamCommand)
+			}
+
+			// System information
+			system := v1.Group("/system")
+			{
+				system.GET("/info", a.system.GetSystemInfo)
+				system.GET("/processes", a.system.GetProcesses)
+				system.POST("/notify", a.system.SendNotification)
+			}
+
+			// Media streaming
+			media := v1.Group("/media")
+			{
+				audio := media.Group("/audio")
+				{
+					audio.GET("/devices", a.media.GetAudioDevices)
+					audio.GET("/stream", a.media.StreamAudio)
+				}
+				
+				media.GET("/screen", a.media.StreamScreen)
+			}
+		}
+	}
+
+	// Compatibility with existing endpoints
+	// We maintain these for backward compatibility
+	api.GET("/clipboard", a.clipboard.GetClipboard)
+	api.POST("/clipboard", a.clipboard.SetClipboard)
+	api.GET("/files", a.listFiles)
+	api.POST("/files", a.uploadFile)
+	api.GET("/files/:filename", a.downloadFile)
+}
+
 // redirectToDocumentation redirects to API documentation
 func (a *API) redirectToDocumentation(c *gin.Context) {
 	c.Redirect(http.StatusFound, "/api/v1/docs")
