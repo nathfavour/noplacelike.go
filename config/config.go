@@ -14,6 +14,7 @@ type Config struct {
 	
 	// Directory settings
 	UploadFolder   string   `json:"uploadFolder"`
+	DownloadFolder string   `json:"downloadFolder"`
 	AudioFolders   []string `json:"audioFolders"`
 	AllowedPaths   []string `json:"allowedPaths"`
 	ShowHidden     bool     `json:"showHidden"`
@@ -36,11 +37,13 @@ type Config struct {
 func DefaultConfig() *Config {
 	homeDir, _ := os.UserHomeDir()
 	uploadDir := filepath.Join(homeDir, "Downloads", "noplacelike-uploads")
+	downloadDir := filepath.Join(homeDir, "Downloads", "noplacelike-downloads")
 	
 	return &Config{
 		Host:                "0.0.0.0",
 		Port:                8080,
 		UploadFolder:        uploadDir,
+		DownloadFolder:      downloadDir,
 		AudioFolders:        []string{},
 		AllowedPaths:        []string{homeDir},
 		ShowHidden:          false,
