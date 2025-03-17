@@ -210,8 +210,8 @@ const homeTemplate = `<!DOCTYPE html>
                 const fileList = document.getElementById('fileList');
                 fileList.innerHTML = data.files.map(file => `
                     <div class="file-item">
-                        <span>${file}</span>
-                        <button onclick="downloadFile('${file}')" 
+                        <span>` + file + `</span>
+                        <button onclick="downloadFile('` + file + `')" 
                                 class="link-button">Download</button>
                     </div>
                 `).join('');
@@ -291,14 +291,14 @@ const homeTemplate = `<!DOCTYPE html>
                 let html = '';
                 // data.files is an object: {folder1: [files], folder2: [files], ...}
                 for (const [dir, files] of Object.entries(data.files)) {
-                    html += `<h5>Directory: ${dir}</h5>`;
+                    html += `<h5>Directory: ` + dir + `</h5>`;
                     if (files && files.length) {
                         html += `<table>
                                     <tr><th>File</th><th>Action</th></tr>`;
                         files.forEach(file => {
                             html += `<tr>
-                                        <td>${file}</td>
-                                        <td><button class="button" onclick="streamAudio('${file}')">Stream</button></td>
+                                        <td>` + file + `</td>
+                                        <td><button class="button" onclick="streamAudio('` + file + `')">Stream</button></td>
                                     </tr>`;
                         });
                         html += `</table>`;
@@ -524,10 +524,10 @@ const adminTemplate = `<!DOCTYPE html>
                 const tbody = document.getElementById('dirList');
                 tbody.innerHTML = data.dirs.map(dir => `
                     <tr>
-                        <td>${dir}</td>
-                        <td>${checkDirStatus(dir)}</td>
+                        <td>` + dir + `</td>
+                        <td>` + checkDirStatus(dir) + `</td>
                         <td>
-                            <button class="button" onclick="removeDirectory('${dir}')">Remove</button>
+                            <button class="button" onclick="removeDirectory('` + dir + `')">Remove</button>
                         </td>
                     </tr>
                 `).join('');
