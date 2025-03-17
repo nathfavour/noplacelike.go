@@ -3,7 +3,7 @@ package docs
 import (
 	"net/http"
 
-	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin" // added missing gin import
 )
 
 // APIEndpoint represents a documented API endpoint
