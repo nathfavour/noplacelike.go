@@ -4,30 +4,23 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/spf13/cobra"
+	"github.com/nathfavour/noplacelike.go/cmd"
+	"github.com/nathfavour/noplacelike.go/config"
 )
 
 func main() {
-	var rootCmd = &cobra.Command{
-		Use:   "noplacelike",
-		Short: "NoPlaceLike is a simple CLI application",
-		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println("Hello from NoPlaceLike!")
-		},
+	// Load config at startup
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error loading configuration: %v\n", err)
 	}
 
-	var versionCmd = &cobra.Command{
-		Use:   "version",
-		Short: "Print the version number of NoPlaceLike",
-		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println("NoPlaceLike v0.1.0")
-		},
-	}
-
-	rootCmd.AddCommand(versionCmd)
-
+	// Initialize the root command
+	rootCmd := cmd.NewRootCmd(cfg)
+	
+	// Execute command
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 }
