@@ -1,9 +1,9 @@
 package api
 
 import (
-	"errors"
+	// "errors"
 	"fmt"
-	"io/fs"
+	// "io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -12,7 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/nathfavour/noplacelike.go/config"
-	"strings" // Import strings package
+	// "strings" // Import strings package
 )
 
 // FileInfo represents information about a file
