@@ -16,13 +16,22 @@ func NewRootCmd(cfg *config.Config) *cobra.Command {
 	var host string
 	var port int
 	var uploadFolder string
-	var downloadFolder string
 
 	rootCmd := &cobra.Command{
 		Use:   "noplacelike",
 		Short: "NoPlaceLike is a network resource sharing application",
 		Long: `NoPlaceLike is your virtual distributed operating system for effortlessly
 streaming clipboard data, files, music, and more across devices—wirelessly and seamlessly!`,
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			// Ensure upload directory exists
+			uploadDir := cfg.UploadFolder // Changed from cfg.DownloadFolder
+			if _, err := os.Stat(uploadDir); os.IsNotExist(err) {
+				if err := os.MkdirAll(uploadDir, 0755); err != nil {
+					cmd.PrintErrf("Error creating upload directory: %v\n", err)
+					os.Exit(1)
+				}
+			}
+		},
 		Run: func(cmd *cobra.Command, args []string) {
 			// Update config with flag values if provided
 			if cmd.Flags().Changed("host") {
@@ -33,9 +42,6 @@ streaming clipboard data, files, music, and more across devices—wirelessly and
 			}
 			if cmd.Flags().Changed("upload-folder") {
 				cfg.UploadFolder = uploadFolder
-			}
-			if cmd.Flags().Changed("download-folder") {
-				cfg.DownloadFolder = downloadFolder
 			}
 
 			// Save updated configuration
@@ -69,7 +75,6 @@ streaming clipboard data, files, music, and more across devices—wirelessly and
 	rootCmd.Flags().StringVarP(&host, "host", "", "0.0.0.0", "Host address to bind to")
 	rootCmd.Flags().IntVarP(&port, "port", "p", 8000, "Port to listen on")
 	rootCmd.Flags().StringVarP(&uploadFolder, "upload-folder", "u", "", "Custom folder for uploads")
-	rootCmd.Flags().StringVarP(&downloadFolder, "download-folder", "d", "", "Custom folder for downloads")
 
 	// Add sub-commands
 	rootCmd.AddCommand(newVersionCmd())
