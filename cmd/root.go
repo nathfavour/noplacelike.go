@@ -52,10 +52,8 @@ streaming clipboard data, files, music, and more across devices—wirelessly and
 			// Start the server
 			srv := server.NewServer(cfg)
 			go func() {
-				if err := srv.Start(); err != nil {
-					fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
-					os.Exit(1)
-				}
+				// Previously: if err := srv.Start(); err != nil { ... }
+				srv.Start()
 			}()
 
 			// Display access information

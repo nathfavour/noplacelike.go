@@ -64,9 +64,9 @@ func (s *Server) Shutdown() {
 
 // setupRoutes sets up the API routes
 func (s *Server) setupRoutes() {
-	// Initialize API handler
-	apiHandler := api.New(s.config)
-	apiHandler.SetupRoutes(s.router)
+	// Initialize API and create its routes on the router
+	apiHandler := api.NewAPI(s.config)
+	apiHandler.CreateRoutes(s.router) // Changed from SetupRoutes to CreateRoutes
 	
 	// Redirect root to UI
 	s.router.GET("/", func(c *gin.Context) {
