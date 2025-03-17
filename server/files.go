@@ -35,6 +35,16 @@ func (s *Server) listFiles(c *gin.Context) {
 // uploadFile handles file uploads
 func (s *Server) uploadFile(c *gin.Context) {
 	uploadDir := expandPath(s.config.UploadFolder)
+
+	// Create upload directory if it doesn't exist
+	if _, err := os.Stat(uploadDir); os.IsNotExist(err) {
+		if err := os.MkdirAll(uploadDir, 0755); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "Error creating upload directory: " + err.Error(),
+			})
+			return
+		}
+	}
 	
 	file, err := c.FormFile("file")
 	if err != nil {
