@@ -9,18 +9,18 @@ import (
 
 func main() {
 	var rootCmd = &cobra.Command{
-		Use:   "mycli",
-		Short: "MyCLI is a simple CLI application",
+		Use:   "noplacelike",
+		Short: "NoPlaceLike is a simple CLI application",
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println("Hello from MyCLI!")
+			fmt.Println("Hello from NoPlaceLike!")
 		},
 	}
 
 	var versionCmd = &cobra.Command{
 		Use:   "version",
-		Short: "Print the version number of MyCLI",
+		Short: "Print the version number of NoPlaceLike",
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println("MyCLI v0.1.0")
+			fmt.Println("NoPlaceLike v0.1.0")
 		},
 	}
 
