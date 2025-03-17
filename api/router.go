@@ -38,9 +38,10 @@ func (a *API) CreateRoutes(router *gin.Engine) {
 	{
 		// API documentation
 		api.GET("/", a.redirectToDocumentation)
-		api.GET("/docs", ServeAPIDocsUI)
-		api.GET("/docs/json", ServeAPIDocsJSON)
-
+		// Removed duplicate docs routes:
+		// api.GET("/docs", ServeAPIDocsUI)
+		// api.GET("/docs/json", ServeAPIDocsJSON)
+		
 		// Version 1 API
 		v1 := api.Group("/v1")
 		{
