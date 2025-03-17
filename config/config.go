@@ -6,28 +6,51 @@ import (
 	"path/filepath"
 )
 
-// Config holds application configuration
+// Config holds the application configuration
 type Config struct {
-	Host           string   `json:"host"`
-	Port           int      `json:"port"`
-	UploadFolder   string   `json:"upload_folder"`
-	DownloadFolder string   `json:"download_folder"`
-	AudioFolders   []string `json:"audio_folders"`
+	// Server settings
+	Host           string `json:"host"`
+	Port           int    `json:"port"`
+	
+	// Directory settings
+	UploadFolder   string   `json:"uploadFolder"`
+	AudioFolders   []string `json:"audioFolders"`
+	AllowedPaths   []string `json:"allowedPaths"`
+	ShowHidden     bool     `json:"showHidden"`
+	
+	// Feature flags
+	EnableShell           bool `json:"enableShell"`
+	EnableAudioStreaming  bool `json:"enableAudioStreaming"`
+	EnableScreenStreaming bool `json:"enableScreenStreaming"`
+	
+	// Security settings
+	AllowedCommands     []string `json:"allowedCommands"`
+	MaxFileContentSize  int      `json:"maxFileContentSize"` // in bytes
+	ClipboardHistorySize int     `json:"clipboardHistorySize"`
+	
+	// API version
+	APIVersion string `json:"apiVersion"`
 }
 
-// DefaultConfig returns the default configuration
+// DefaultConfig returns a config with default values
 func DefaultConfig() *Config {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		homeDir = "."
-	}
-
+	homeDir, _ := os.UserHomeDir()
+	uploadDir := filepath.Join(homeDir, "Downloads", "noplacelike-uploads")
+	
 	return &Config{
-		Host:           "0.0.0.0",
-		Port:           8000,
-		UploadFolder:   filepath.Join(homeDir, "noplacelike", "uploads"),
-		DownloadFolder: filepath.Join(homeDir, "Downloads"),
-		AudioFolders:   []string{},
+		Host:                "0.0.0.0",
+		Port:                8080,
+		UploadFolder:        uploadDir,
+		AudioFolders:        []string{},
+		AllowedPaths:        []string{homeDir},
+		ShowHidden:          false,
+		EnableShell:         true,
+		EnableAudioStreaming: false,
+		EnableScreenStreaming: false,
+		AllowedCommands:     []string{},
+		MaxFileContentSize:   1024 * 1024, // 1MB
+		ClipboardHistorySize: 50,
+		APIVersion:          "v1",
 	}
 }
 

@@ -24,31 +24,28 @@ type Server struct {
 	clipboard string // In-memory clipboard storage
 }
 
-// NewServer creates a new server instance
+// NewServer creates a new server with the given configuration
 func NewServer(cfg *config.Config) *Server {
-	// Create required directories
-	ensureDirExists(cfg.UploadFolder)
-	
-	// Set up router
-	gin.SetMode(gin.ReleaseMode)
 	router := gin.Default()
 	
-	s := &Server{
-		config: cfg,
+	// Create middleware for cross-origin requests
+	router.Use(func(c *gin.Context) {
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+		
+		c.Next()
+	})
+	
+	return &Server{
 		router: router,
-		clipboard: "",
+		config: cfg,
 	}
-	
-	// Register routes
-	s.setupRoutes()
-	
-	// Configure HTTP server
-	s.server = &http.Server{
-		Addr:    fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
-		Handler: router,
-	}
-	
-	return s
 }
 
 // Start starts the server
@@ -68,42 +65,18 @@ func (s *Server) Shutdown() {
 
 // setupRoutes configures all routes for the server
 func (s *Server) setupRoutes() {
+	// Initialize API handler
+	apiHandler := api.New(s.config)
+	apiHandler.SetupRoutes(s.router)
+	
 	// Redirect root to UI
 	s.router.GET("/", func(c *gin.Context) {
 		c.Redirect(http.StatusFound, "/ui")
 	})
 	
-	// API routes for clipboard and file sharing
-	api := s.router.Group("/api")
-	{
-		// Clipboard endpoints
-		api.GET("/clipboard", s.getClipboard)
-		api.POST("/clipboard", s.setClipboard)
-		
-		// File endpoints
-		api.GET("/files", s.listFiles)
-		api.POST("/files", s.uploadFile)
-		api.GET("/files/:filename", s.downloadFile)
-	}
-	
-	// Streaming endpoints
-	stream := s.router.Group("/stream")
-	{
-		stream.GET("/play", s.streamAudio)
-		stream.GET("/list", s.listAudio)
-	}
-	
-	// Admin API endpoints
-	admin := s.router.Group("/admin")
-	{
-		admin.GET("/", s.adminPanel)
-		admin.GET("/dirs", s.getAudioDirs)
-		admin.POST("/dirs", s.addAudioDir)
-		admin.DELETE("/dirs", s.removeAudioDir)
-	}
-	
 	// UI routes - Web interface
 	s.router.GET("/ui", s.uiHome)
+	s.router.GET("/admin", s.adminPanel)
 	
 	// Serve static files
 	s.router.Static("/static", "./static")
