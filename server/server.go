@@ -79,6 +79,9 @@ func (s *Server) setupRoutes() {
 	
 	// Serve static files
 	s.router.Static("/static", "./static")
+	
+	// Register API documentation routes
+	s.registerDocRoutes()
 }
 
 // ensureDirExists creates a directory if it doesn't exist
