@@ -482,7 +482,7 @@ const apiDocsTemplate = `<!DOCTYPE html>
                     // Add to TOC
                     const categoryItem = document.createElement('li');
                     categoryItem.className = 'toc-category';
-                    categoryItem.innerHTML = `<a href="#${slugify(category.name)}">${category.name}</a>`;
+                    categoryItem.innerHTML = "<a href=\"#" + slugify(category.name) + "\">" + category.name + "</a>";
                     tocList.appendChild(categoryItem);
                     
                     const endpointsList = document.createElement('ul');
@@ -492,7 +492,7 @@ const apiDocsTemplate = `<!DOCTYPE html>
                         const endpointId = slugify(category.name + '-' + endpoint.method + '-' + endpoint.path);
                         const endpointItem = document.createElement('li');
                         endpointItem.className = 'toc-endpoint';
-                        endpointItem.innerHTML = `<a href="#${endpointId}">${endpoint.method} ${endpoint.path}</a>`;
+                        endpointItem.innerHTML = "<a href=\"#" + endpointId + "\">" + endpoint.method + " " + endpoint.path + "</a>";
                         endpointsList.appendChild(endpointItem);
                     });
                     
@@ -505,10 +505,10 @@ const apiDocsTemplate = `<!DOCTYPE html>
                     
                     categoryDiv.innerHTML = `
                         <div class="category-header">
-                            <h2>${category.name}</h2>
+                            <h2>` + category.name + `</h2>
                         </div>
                         <div class="category-description">
-                            <p>${category.description}</p>
+                            <p>` + category.description + `</p>
                         </div>
                     `;
                     
@@ -521,11 +521,11 @@ const apiDocsTemplate = `<!DOCTYPE html>
                         
                         let endpointContent = `
                             <div class="endpoint-header">
-                                <span class="http-method ${endpoint.method.toLowerCase()}">${endpoint.method}</span>
-                                <span class="endpoint-path">${endpoint.path}</span>
+                                <span class="http-method ` + endpoint.method.toLowerCase() + `">` + endpoint.method + `</span>
+                                <span class="endpoint-path">` + endpoint.path + `</span>
                             </div>
                             <div class="endpoint-content">
-                                <p>${endpoint.description}</p>
+                                <p>` + endpoint.description + `</p>
                         `;
                         
                         // Parameters
@@ -546,8 +546,8 @@ const apiDocsTemplate = `<!DOCTYPE html>
                             for (const [param, desc] of Object.entries(endpoint.parameters)) {
                                 endpointContent += `
                                     <tr>
-                                        <td><code>${param}</code></td>
-                                        <td>${desc}</td>
+                                        <td><code>` + param + `</code></td>
+                                        <td>` + desc + `</td>
                                     </tr>
                                 `;
                             }
@@ -564,7 +564,7 @@ const apiDocsTemplate = `<!DOCTYPE html>
                             endpointContent += `
                                 <div class="endpoint-section">
                                     <h4>Request Body</h4>
-                                    <div class="code-block">${JSON.stringify(endpoint.requestBody, null, 2)}</div>
+                                    <div class="code-block">` + stringify(endpoint.requestBody) + `</div>
                                 </div>
                             `;
                         }
@@ -574,7 +574,7 @@ const apiDocsTemplate = `<!DOCTYPE html>
                             endpointContent += `
                                 <div class="endpoint-section">
                                     <h4>Response</h4>
-                                    <div class="code-block">${JSON.stringify(endpoint.response, null, 2)}</div>
+                                    <div class="code-block">` + stringify(endpoint.response) + `</div>
                                 </div>
                             `;
                         }
@@ -584,7 +584,7 @@ const apiDocsTemplate = `<!DOCTYPE html>
                             endpointContent += `
                                 <div class="endpoint-section">
                                     <h4>Example</h4>
-                                    <div class="code-block">${endpoint.example}</div>
+                                    <div class="code-block">` + endpoint.example + `</div>
                                 </div>
                             `;
                         }
@@ -606,6 +606,10 @@ const apiDocsTemplate = `<!DOCTYPE html>
                 .toLowerCase()
                 .replace(/[^\w ]+/g, '')
                 .replace(/ +/g, '-');
+        }
+        
+        function stringify(obj) {
+            return JSON.stringify(obj, null, 2);
         }
         
         document.addEventListener('DOMContentLoaded', loadDocs);
