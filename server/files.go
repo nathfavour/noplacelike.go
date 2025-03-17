@@ -12,6 +12,21 @@ import (
 func (s *Server) listFiles(c *gin.Context) {
 	uploadDir := expandPath(s.config.UploadFolder)
 	
+	// Create directory if it doesn't exist, instead of failing
+	if _, err := os.Stat(uploadDir); os.IsNotExist(err) {
+		if err := os.MkdirAll(uploadDir, 0755); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "Error creating upload directory: " + err.Error(),
+			})
+			return
+		}
+		// Return empty list for newly created directory
+		c.JSON(http.StatusOK, gin.H{
+			"files": []string{},
+		})
+		return
+	}
+	
 	files, err := os.ReadDir(uploadDir)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -75,6 +90,17 @@ func (s *Server) uploadFile(c *gin.Context) {
 // downloadFile serves a file for download
 func (s *Server) downloadFile(c *gin.Context) {
 	uploadDir := expandPath(s.config.UploadFolder)
+	
+	// Check if directory exists, create if needed
+	if _, err := os.Stat(uploadDir); os.IsNotExist(err) {
+		if err := os.MkdirAll(uploadDir, 0755); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "Error creating upload directory: " + err.Error(),
+			})
+			return
+		}
+	}
+	
 	filename := c.Param("filename")
 	
 	// Ensure no path traversal

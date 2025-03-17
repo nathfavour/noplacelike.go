@@ -120,9 +120,26 @@ func (a *API) redirectToDocumentation(c *gin.Context) {
 	c.Redirect(http.StatusFound, "/api/v1/docs")
 }
 
-// listFiles lists all files in the uploads directory
+// listFiles handles file listing
 func (a *API) listFiles(c *gin.Context) {
 	uploadDir := expandPath(a.config.UploadFolder)
+	
+	// Create directory if it doesn't exist, instead of failing
+	if _, err := os.Stat(uploadDir); os.IsNotExist(err) {
+		if err := os.MkdirAll(uploadDir, 0755); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "Error accessing files directory: " + err.Error(),
+			})
+			return
+		}
+		// Return empty list for new directory
+		c.JSON(http.StatusOK, gin.H{
+			"files": []string{},
+		})
+		return
+	}
+	
+	// Continue with normal file listing
 	files, err := listFilesInDir(uploadDir)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -144,7 +161,7 @@ func (a *API) uploadFile(c *gin.Context) {
 	if _, err := os.Stat(uploadDir); os.IsNotExist(err) {
 		if err := os.MkdirAll(uploadDir, 0755); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "Error creating upload directory: " + err.Error(),
+				"error": "Failed to save file: " + err.Error(),
 			})
 			return
 		}
