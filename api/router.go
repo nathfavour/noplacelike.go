@@ -1,7 +1,7 @@
 package api
 
 import (
-	"fmt"  // Add the missing fmt import
+	"fmt" // Add the missing fmt import
 	"net/http"
 	"os"
 	"path/filepath"
@@ -24,7 +24,12 @@ type API struct {
 // NewAPI creates a new API instance
 func NewAPI(cfg *config.Config) *API {
 	return &API{
-		config: cfg,
+		config:     cfg,
+		clipboard:  NewClipboardAPI(cfg),
+		filesystem: NewFileSystemAPI(cfg),
+		shell:      NewShellAPI(cfg),
+		system:     NewSystemAPI(cfg),
+		media:      NewMediaAPI(cfg),
 	}
 }
 
@@ -41,7 +46,7 @@ func (a *API) CreateRoutes(router *gin.Engine) {
 		// Removed duplicate docs routes:
 		// api.GET("/docs", ServeAPIDocsUI)
 		// api.GET("/docs/json", ServeAPIDocsJSON)
-		
+
 		// Version 1 API
 		v1 := api.Group("/v1")
 		{
@@ -68,6 +73,7 @@ func (a *API) CreateRoutes(router *gin.Engine) {
 			{
 				filesystem.GET("/list", a.filesystem.ListDirectory)
 				filesystem.GET("/content", a.filesystem.GetFileContent)
+				filesystem.GET("/serve", a.filesystem.ServeFile)
 				// Additional filesystem endpoints could be added here
 			}
 
@@ -96,6 +102,9 @@ func (a *API) CreateRoutes(router *gin.Engine) {
 				}
 
 				media.GET("/screen", a.media.StreamScreen)
+				// API documentation routes
+				v1.GET("/docs", ServeAPIDocsUI)
+				v1.GET("/docs/json", ServeAPIDocsJSON)
 			}
 		}
 
@@ -211,8 +220,8 @@ func (a *API) downloadFile(c *gin.Context) {
 		return
 	}
 
-	// Serve the file
-	c.File(filepath)
+	// Serve the file as attachment when downloading
+	c.FileAttachment(filepath, filename)
 }
 
 // deleteFile deletes a file
@@ -304,16 +313,16 @@ func getSafeFilename(filename string) string {
 
 // initDirectories initializes directories ONLY when they're needed
 func initDirectory(path string) error {
-    if path == "" {
-        return fmt.Errorf("empty path provided")
-    }
-    
-    expandedPath := expandPath(path)
-    if _, err := os.Stat(expandedPath); os.IsNotExist(err) {
-        if err := os.MkdirAll(expandedPath, 0755); err != nil {
-            return err
-        }
-    }
-    
-    return nil
+	if path == "" {
+		return fmt.Errorf("empty path provided")
+	}
+
+	expandedPath := expandPath(path)
+	if _, err := os.Stat(expandedPath); os.IsNotExist(err) {
+		if err := os.MkdirAll(expandedPath, 0755); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

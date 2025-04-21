@@ -46,6 +46,10 @@ func NewFileSystemAPI(cfg *config.Config) *FileSystemAPI {
 
 // ListDirectory lists contents of a directory
 func (f *FileSystemAPI) ListDirectory(c *gin.Context) {
+	// Reload configuration on each request
+	if cfg, err := config.Load(); err == nil {
+		f.config = cfg
+	}
 	path := c.Query("path")
 	if path == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -120,6 +124,10 @@ func (f *FileSystemAPI) ListDirectory(c *gin.Context) {
 
 // GetFileContent retrieves the content of a file
 func (f *FileSystemAPI) GetFileContent(c *gin.Context) {
+	// Reload configuration on each request
+	if cfg, err := config.Load(); err == nil {
+		f.config = cfg
+	}
 	path := c.Query("path")
 	if path == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -155,8 +163,8 @@ func (f *FileSystemAPI) GetFileContent(c *gin.Context) {
 		return
 	}
 
-	// Check file size before reading
-	if info.Size() > int64(f.config.MaxFileContentSize) {
+	// Only enforce size limit if MaxFileContentSize > 0 (0 means unlimited)
+	if f.config.MaxFileContentSize > 0 && info.Size() > int64(f.config.MaxFileContentSize) {
 		c.JSON(http.StatusRequestEntityTooLarge, gin.H{
 			"error": fmt.Sprintf("File too large (max %d bytes)", f.config.MaxFileContentSize),
 		})
@@ -174,7 +182,7 @@ func (f *FileSystemAPI) GetFileContent(c *gin.Context) {
 
 	// Detect if it's likely a text file or binary
 	contentType := detectContentType(content, path)
-	
+
 	// If binary, return error unless force flag is set
 	if contentType == "application/octet-stream" && c.Query("force") != "true" {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -209,7 +217,7 @@ func (f *FileSystemAPI) isPathAllowed(path string) bool {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
@@ -220,7 +228,31 @@ func detectContentType(content []byte, path string) string {
 	case ".txt", ".md", ".json", ".xml", ".html", ".htm", ".css", ".js", ".go", ".py", ".c", ".cpp", ".h", ".java":
 		return "text/plain"
 	}
-	
+
 	// Then try http.DetectContentType
 	return http.DetectContentType(content)
+}
+
+// ServeFile serves raw file content for download or streaming
+func (f *FileSystemAPI) ServeFile(c *gin.Context) {
+	// Reload config on each request
+	if cfg, err := config.Load(); err == nil {
+		f.config = cfg
+	}
+	path := c.Query("path")
+	if path == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Path parameter is required"})
+		return
+	}
+	if !f.isPathAllowed(path) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Access to this file is not allowed"})
+		return
+	}
+	expandedPath := expandPath(path)
+	// Serve file with proper headers (supports Range). Use attachment when download=true
+	if c.Query("download") == "true" {
+		c.FileAttachment(expandedPath, filepath.Base(expandedPath))
+		return
+	}
+	c.File(expandedPath)
 }

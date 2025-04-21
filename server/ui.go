@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"net/http"
 	"strings"
 
@@ -24,11 +25,14 @@ func (s *Server) uiHomeWithTab(c *gin.Context, tab string) {
 	c.Header("Content-Type", "text/html")
 	// Inject a JS variable to select the tab
 	tabScript := `<script>window._initialTab = '` + tab + `';</script>`
+	// Inject full config for client-side usage
+	cfgJSON, _ := json.Marshal(s.config)
+	configScript := `<script>window._config = ` + string(cfgJSON) + `;</script>`
 	// Insert the script just before </head>
 	html := homeTemplate
 	headEnd := "</head>"
 	if idx := strings.Index(html, headEnd); idx != -1 {
-		html = html[:idx] + tabScript + html[idx:]
+		html = html[:idx] + configScript + tabScript + html[idx:]
 	}
 	c.String(http.StatusOK, html)
 }
@@ -423,12 +427,13 @@ const homeTemplate = `<!DOCTYPE html>
                 .then(function(res) { return res.json(); })
                 .then(function(data) {
                     var contentDiv = document.getElementById('file-browser-content');
-                    if (data.contentType && data.contentType.indexOf('text/') === 0) {
+                    if (data.contentType && data.contentType.startsWith('text/')) {
                         contentDiv.innerHTML = '<div class="file-content">' + escapeHtml(data.content) + '</div>';
-                    } else if (data.contentType && data.contentType.indexOf('image/') === 0) {
-                        contentDiv.innerHTML = '<img src="/api/v1/filesystem/content?path=' + encodeURIComponent(path) + '" style="max-width:100%;border-radius:6px;" />';
+                    } else if (data.contentType && data.contentType.startsWith('image/')) {
+                        contentDiv.innerHTML = '<img src="/api/v1/filesystem/serve?path=' + encodeURIComponent(path) + '" style="max-width:100%;border-radius:6px;" />';
                     } else {
-                        contentDiv.innerHTML = '<a href="/api/v1/filesystem/content?path=' + encodeURIComponent(path) + '&force=true" download>Download file</a>';
+                        // Use download query param to trigger file attachment
+                        contentDiv.innerHTML = '<a href="/api/v1/filesystem/serve?path=' + encodeURIComponent(path) + '&download=true" download>Download file</a>';
                     }
                 });
         }
@@ -652,6 +657,18 @@ const homeTemplate = `<!DOCTYPE html>
         // Initialize
         updateFileList();
         fetchAudioFiles();
+
+        // Attach file tab actions using configured root path
+        var defaultRoot = (window._config && window._config.allowedPaths && window._config.allowedPaths.length) ? window._config.allowedPaths[0] : '/';
+        // Only call when Files tab is active
+        document.getElementById('tab-files').addEventListener('click', function(){ showFileSubTab('manager'); loadFileBrowser(defaultRoot); });
+        document.getElementById('tab-files-mobile').addEventListener('click', function(){ showFileSubTab('manager'); loadFileBrowser(defaultRoot); });
+        // Default to Manager view in Files
+        showFileSubTab('manager');
+        // Initial file browser load if Files tab active
+        if (window._initialTab === 'files') {
+            loadFileBrowser(defaultRoot);
+        }
     </script>
 </body>
 </html>`
