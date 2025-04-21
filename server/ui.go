@@ -129,86 +129,278 @@ const homeTemplate = `<!DOCTYPE html>
         .scrollable { max-height: 300px; overflow-y: auto; }
         table { width: 100%; border-collapse: collapse; }
         th, td { padding: 0.5rem; border: 1px solid #ddd; text-align: left; }
+
+        /* Sidebar styles */
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            width: 220px;
+            background: linear-gradient(180deg, #4444ff 0%, #222244 100%);
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            z-index: 1000;
+            box-shadow: 2px 0 12px rgba(44,44,100,0.08);
+            border-right: 1px solid #333366;
+        }
+        .sidebar .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            padding: 1.5rem 1rem 1rem 1.5rem;
+            border-bottom: 1px solid #333366;
+            letter-spacing: 1px;
+            background: rgba(255,255,255,0.04);
+        }
+        .sidebar .nav {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            padding: 2rem 0 1rem 0;
+        }
+        .sidebar .nav button {
+            background: none;
+            border: none;
+            color: #fff;
+            text-align: left;
+            padding: 0.9rem 2rem;
+            font-size: 1.08rem;
+            cursor: pointer;
+            border-radius: 8px 20px 20px 8px;
+            transition: background 0.18s, color 0.18s;
+            display: flex;
+            align-items: center;
+            gap: 0.9em;
+            font-weight: 500;
+        }
+        .sidebar .nav button.active, .sidebar .nav button:hover {
+            background: linear-gradient(90deg, #fff 0%, #e0e7ff 100%);
+            color: #4444ff;
+        }
+        .sidebar .nav .icon {
+            font-size: 1.3em;
+            width: 1.7em;
+            text-align: center;
+        }
+        .sidebar .spacer { flex: 1; }
+        .sidebar .footer {
+            padding: 1.2rem 1.5rem;
+            font-size: 0.95rem;
+            color: #b3b3ff;
+            border-top: 1px solid #333366;
+            background: rgba(255,255,255,0.03);
+        }
+        .main-with-sidebar { margin-left: 220px; padding: 2rem 1rem 1rem 1rem; }
+        .bottombar button {
+            background: none;
+            border: none;
+            color: #fff;
+            font-size: 1.1rem;
+            flex: 1;
+            height: 100%;
+            cursor: pointer;
+        }
+        .bottombar button.active, .bottombar button:hover {
+            background: #4444ff;
+        }
+        @media (max-width: 900px) {
+            .bottombar { display: flex; }
+        }
+        /* File browser styles */
+        .file-browser {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            min-height: 300px;
+        }
+        .file-browser .path {
+            font-size: 0.95rem;
+            color: #666;
+            margin-bottom: 1rem;
+        }
+        .file-browser ul {
+            list-style: none;
+            padding: 0;
+        }
+        .file-browser li {
+            padding: 0.5rem 0.2rem;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .file-browser li:last-child { border-bottom: none; }
+        .file-browser .icon { width: 1.2em; text-align: center; }
+        .file-browser .file-link, .file-browser .folder-link {
+            color: #4444ff;
+            cursor: pointer;
+            text-decoration: none;
+            background: none;
+            border: none;
+            font-size: 1rem;
+        }
+        .file-browser .file-link:hover, .file-browser .folder-link:hover {
+            text-decoration: underline;
+        }
+        .file-browser .file-content {
+            background: #f8f8f8;
+            border-radius: 6px;
+            padding: 1rem;
+            margin-top: 1rem;
+            font-family: monospace;
+            font-size: 0.98rem;
+            overflow-x: auto;
+            max-height: 350px;
+        }
     </style>
 </head>
 <body>
-    <nav class="navbar">
-        <div class="container">
-            <h1 style="font-size: 1.5rem; font-weight: 600;">noplacelike</h1>
+    <div class="sidebar">
+        <div class="logo">noplacelike</div>
+        <div class="nav">
+            <button id="tab-clipboard" onclick="showTab('clipboard')">Clipboard</button>
+            <button id="tab-files" onclick="showTab('files')">Files</button>
+            <button id="tab-audio" onclick="showTab('audio')">Audio</button>
         </div>
-    </nav>
-
-    <main class="container">
-        <div class="grid">
+        <div class="spacer"></div>
+        <div class="footer">v0.1.0</div>
+    </div>
+    <div class="bottombar">
+        <button id="tab-clipboard-mobile" onclick="showTab('clipboard')">Clipboard</button>
+        <button id="tab-files-mobile" onclick="showTab('files')">Files</button>
+        <button id="tab-audio-mobile" onclick="showTab('audio')">Audio</button>
+    </div>
+    <main class="main-with-sidebar">
+        <div id="tab-content-clipboard">
             <!-- Clipboard Card -->
             <div class="card">
                 <h3 style="font-size: 1.2rem; margin-bottom: 1rem;">Clipboard Sharing</h3>
-                <textarea id="clipboard" class="textarea" 
-                        placeholder="Paste text here to share..."></textarea>
-                <button onclick="shareClipboard()" class="button">
-                    Share Clipboard
-                </button>
+                <textarea id="clipboard" class="textarea" placeholder="Paste text here to share..."></textarea>
+                <button onclick="shareClipboard()" class="button">Share Clipboard</button>
             </div>
-
-            <!-- File Sharing Card -->
-            <div class="card">
-                <h3 style="font-size: 1.2rem; margin-bottom: 1rem;">File Sharing</h3>
-                <div class="upload-area">
-                    <input type="file" id="fileInput" style="display: none;" multiple onchange="uploadFiles()">
-                    <button onclick="document.getElementById('fileInput').click()" 
-                            class="button">
-                        Select Files
-                    </button>
-                    <p style="margin-top: 0.5rem; color: #666;">
-                        or drag and drop files here
-                    </p>
-                </div>
-            </div>
-
-            <!-- Server Clipboard Card -->
             <div class="card">
                 <h3 style="font-size: 1.2rem; margin-bottom: 1rem;">Server Clipboard</h3>
                 <div id="serverClipboard" class="textarea" style="overflow:auto; background:#f0f0f0;"></div>
                 <button onclick="fetchServerClipboard()" class="button" style="margin-top:0.5rem;">Fetch Server Clipboard</button>
             </div>
-
-            <!-- Audio Streaming Card -->
+        </div>
+        <div id="tab-content-files" style="display:none;">
+            <div class="file-browser">
+                <div class="path" id="file-browser-path"></div>
+                <ul id="file-browser-list"></ul>
+                <div id="file-browser-content"></div>
+            </div>
+            <div class="card">
+                <h3 style="font-size: 1.2rem; margin-bottom: 1rem;">File Sharing</h3>
+                <div class="upload-area">
+                    <input type="file" id="fileInput" style="display: none;" multiple onchange="uploadFiles()">
+                    <button onclick="document.getElementById('fileInput').click()" class="button">Select Files</button>
+                    <p style="margin-top: 0.5rem; color: #666;">or drag and drop files here</p>
+                </div>
+            </div>
+            <div class="card">
+                <h3 style="font-size: 1.2rem; margin-bottom: 1rem;">Shared Files</h3>
+                <div id="fileList" class="file-list"></div>
+            </div>
+        </div>
+        <div id="tab-content-audio" style="display:none;">
             <div class="card">
                 <h3 style="font-size: 1.2rem; margin-bottom: 1rem;">Audio Streaming</h3>
-                <!-- Streaming Source Selection Section with clear button -->
-                <div style="margin-bottom:1rem; border:1px solid #ddd; border-radius:4px; padding:1rem;">
-                    <h4>Streaming Source Selection</h4>
-                    <!-- New text input for absolute directory path -->
-                    <div style="margin-bottom:0.5rem;">
-                        <input type="text" id="streamDirInput" placeholder="Enter absolute directory path" style="width:70%; padding:0.3rem;">
-                        <button class="button" onclick="submitStreamDir()" style="margin-left:0.5rem;">Add Directory</button>
-                    </div>
-                    <button class="button" onclick="clearStreamingDirectories()">Clear Streaming Directories</button>
-                    <div id="selectedDirs" style="margin-top:0.5rem; font-size:0.9rem; color:#555;"></div>
-                </div>
-                <!-- Existing audio player and audio files listing -->
                 <audio id="audioStream" controls style="width:100%;"></audio>
                 <div id="audioFiles" style="margin-top: 1rem;"></div>
             </div>
         </div>
-
-        <!-- File List -->
-        <div class="card">
-            <h3 style="font-size: 1.2rem; margin-bottom: 1rem;">Shared Files</h3>
-            <div id="fileList" class="file-list">
-                <!-- Files will be listed here dynamically -->
-            </div>
-        </div>
     </main>
-
     <script>
+        // Tab switching logic
+        function showTab(tab) {
+            document.getElementById('tab-content-clipboard').style.display = tab === 'clipboard' ? '' : 'none';
+            document.getElementById('tab-content-files').style.display = tab === 'files' ? '' : 'none';
+            document.getElementById('tab-content-audio').style.display = tab === 'audio' ? '' : 'none';
+            // Highlight active tab
+            ['clipboard','files','audio'].forEach(function(t) {
+                var btn = document.getElementById('tab-' + t);
+                if (btn) btn.classList.toggle('active', t === tab);
+                var btnMobile = document.getElementById('tab-' + t + '-mobile');
+                if (btnMobile) btnMobile.classList.toggle('active', t === tab);
+            });
+        }
+        // Default tab
+        showTab('clipboard');
+
+        // File browser logic
+        var currentPath = '/';
+        function loadFileBrowser(path) {
+            if (!path) path = '/';
+            currentPath = path;
+            document.getElementById('file-browser-path').textContent = path;
+            document.getElementById('file-browser-content').innerHTML = '';
+            fetch('/api/v1/filesystem/list?path=' + encodeURIComponent(path))
+                .then(function(res) { return res.json(); })
+                .then(function(data) {
+                    var ul = document.getElementById('file-browser-list');
+                    ul.innerHTML = '';
+                    if (path !== '/') {
+                        var upLi = document.createElement('li');
+                        upLi.innerHTML = '<span class="icon">⬆️</span> <button class="folder-link" onclick="loadFileBrowser(\'' + parentDir(path) + '\')">.. (Up)</button>';
+                        ul.appendChild(upLi);
+                    }
+                    (data.directories || []).forEach(function(dir) {
+                        var li = document.createElement('li');
+                        li.innerHTML = '<span class="icon">📁</span> <button class="folder-link" onclick="loadFileBrowser(\'' + joinPath(path, dir) + '\')">' + dir + '</button>';
+                        ul.appendChild(li);
+                    });
+                    (data.files || []).forEach(function(file) {
+                        var li = document.createElement('li');
+                        li.innerHTML = '<span class="icon">📄</span> <button class="file-link" onclick="viewFile(\'' + joinPath(path, file.name) + '\')">' + file.name + '</button>';
+                        ul.appendChild(li);
+                    });
+                });
+        }
+        function parentDir(path) {
+            if (path === '/' || !path) return '/';
+            var parts = path.split('/').filter(Boolean);
+            parts.pop();
+            return '/' + parts.join('/');
+        }
+        function joinPath(base, name) {
+            if (base.endsWith('/')) return base + name;
+            return base + '/' + name;
+        }
+        function viewFile(path) {
+            fetch('/api/v1/filesystem/content?path=' + encodeURIComponent(path))
+                .then(function(res) { return res.json(); })
+                .then(function(data) {
+                    var contentDiv = document.getElementById('file-browser-content');
+                    if (data.contentType && data.contentType.indexOf('text/') === 0) {
+                        contentDiv.innerHTML = '<div class="file-content">' + escapeHtml(data.content) + '</div>';
+                    } else if (data.contentType && data.contentType.indexOf('image/') === 0) {
+                        contentDiv.innerHTML = '<img src="/api/v1/filesystem/content?path=' + encodeURIComponent(path) + '" style="max-width:100%;border-radius:6px;" />';
+                    } else {
+                        contentDiv.innerHTML = '<a href="/api/v1/filesystem/content?path=' + encodeURIComponent(path) + '&force=true" download>Download file</a>';
+                    }
+                });
+        }
+        function escapeHtml(text) {
+            return text.replace(/[&<>"']/g, function(m) {
+                return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[m];
+            });
+        }
+        // Load root directory on tab open
+        document.getElementById('tab-files').addEventListener('click', function() { loadFileBrowser('/'); });
+        document.getElementById('tab-files-mobile').addEventListener('click', function() { loadFileBrowser('/'); });
+
         // Fetch and display files
         async function updateFileList() {
             try {
                 const response = await fetch('/api/files');
                 const data = await response.json();
                 const fileList = document.getElementById('fileList');
-                fileList.innerHTML = data.files.map(file => "<div class=\"file-item\"><span>" + file + "</span><button onclick=\"downloadFile('" + file + "')\" class=\"link-button\">Download</button></div>").join('');
+                fileList.innerHTML = data.files.map(function(file) { return "<div class=\"file-item\"><span>" + file + "</span><button onclick=\"downloadFile('" + file + "')\" class=\"link-button\">Download</button></div>"; }).join('');
             } catch (error) {
                 console.error('Error updating file list:', error);
             }
