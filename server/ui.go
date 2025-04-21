@@ -118,6 +118,11 @@ const homeTemplate = `<!DOCTYPE html>
         .file-list {
             margin-top: 1rem;
         }
+        /* Horizontal sub-tabs for Files view */
+        .horizontal-tabs { display: flex; justify-content: space-between; border-bottom: 1px solid #e0e0e0; margin-bottom: 1rem; }
+        .tab-group { display: flex; gap: 0.5rem; }
+        .tab-btn { background: none; border: none; padding: 0.5rem 1rem; font-size: 1rem; cursor: pointer; color: #4444ff; }
+        .tab-btn.active { border-bottom: 2px solid #4444ff; color: #222244; }
 
         .file-item {
             display: flex;
@@ -302,22 +307,30 @@ const homeTemplate = `<!DOCTYPE html>
             </div>
         </div>
         <div id="tab-content-files" style="display:none;">
-            <div class="file-browser">
-                <div class="path" id="file-browser-path"></div>
-                <ul id="file-browser-list"></ul>
-                <div id="file-browser-content"></div>
+            <div class="horizontal-tabs">
+                <div class="tab-group"><button id="subtab-manager" class="tab-btn" onclick="showFileSubTab('manager')">Manager</button></div>
+                <div class="tab-group"><button id="subtab-sharing" class="tab-btn" onclick="showFileSubTab('sharing')">Sharing</button></div>
             </div>
-            <div class="card">
-                <h3 style="font-size: 1.2rem; margin-bottom: 1rem;">File Sharing</h3>
-                <div class="upload-area">
-                    <input type="file" id="fileInput" style="display: none;" multiple onchange="uploadFiles()">
-                    <button onclick="document.getElementById('fileInput').click()" class="button">Select Files</button>
-                    <p style="margin-top: 0.5rem; color: #666;">or drag and drop files here</p>
+            <div id="filesub-manager">
+                <div class="file-browser">
+                    <div class="path" id="file-browser-path"></div>
+                    <ul id="file-browser-list"></ul>
+                    <div id="file-browser-content"></div>
                 </div>
             </div>
-            <div class="card">
-                <h3 style="font-size: 1.2rem; margin-bottom: 1rem;">Shared Files</h3>
-                <div id="fileList" class="file-list"></div>
+            <div id="filesub-sharing" style="display:none;">
+                <div class="card">
+                    <h3>File Sharing</h3>
+                    <div class="upload-area">
+                        <input type="file" id="fileInput" style="display:none;" multiple onchange="uploadFiles()">
+                        <button onclick="document.getElementById('fileInput').click()" class="button">Select Files</button>
+                        <p style="color:#666;">or drag and drop files here</p>
+                    </div>
+                </div>
+                <div class="card">
+                    <h3>Shared Files</h3>
+                    <div id="fileList" class="file-list"></div>
+                </div>
             </div>
         </div>
         <div id="tab-content-audio" style="display:none;">
@@ -352,6 +365,19 @@ const homeTemplate = `<!DOCTYPE html>
         } else {
             showTab('home');
         }
+
+        // Files sub-tab logic
+        function showFileSubTab(tab) {
+            ['manager','sharing'].forEach(function(t){
+                document.getElementById('filesub-'+t).style.display = (t===tab?'':'none');
+                document.getElementById('subtab-'+t).classList.toggle('active', t===tab);
+            });
+        }
+        // Default to Manager view in Files
+        // Only call when Files tab is active
+        document.getElementById('tab-files').addEventListener('click', function(){ showFileSubTab('manager'); loadFileBrowser('/'); });
+        document.getElementById('tab-files-mobile').addEventListener('click', function(){ showFileSubTab('manager'); loadFileBrowser('/'); });
+        showFileSubTab('manager');
 
         // File browser logic
         var currentPath = '/';
