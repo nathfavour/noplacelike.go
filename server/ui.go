@@ -2,6 +2,7 @@ package server
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -16,6 +17,20 @@ func (s *Server) uiHome(c *gin.Context) {
 func (s *Server) adminPanel(c *gin.Context) {
 	c.Header("Content-Type", "text/html")
 	c.String(http.StatusOK, adminTemplate)
+}
+
+// uiHomeWithTab renders the main UI page and sets the initial tab
+func (s *Server) uiHomeWithTab(c *gin.Context, tab string) {
+	c.Header("Content-Type", "text/html")
+	// Inject a JS variable to select the tab
+	tabScript := `<script>window._initialTab = '` + tab + `';</script>`
+	// Insert the script just before </head>
+	html := homeTemplate
+	headEnd := "</head>"
+	if idx := strings.Index(html, headEnd); idx != -1 {
+		html = html[:idx] + tabScript + html[idx:]
+	}
+	c.String(http.StatusOK, html)
 }
 
 // HTML templates for UI components
@@ -332,7 +347,11 @@ const homeTemplate = `<!DOCTYPE html>
             });
         }
         // Default tab
-        showTab('home');
+        if (window._initialTab) {
+            showTab(window._initialTab);
+        } else {
+            showTab('home');
+        }
 
         // File browser logic
         var currentPath = '/';
