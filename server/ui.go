@@ -193,68 +193,49 @@ const homeTemplate = `<!DOCTYPE html>
             background: rgba(255,255,255,0.03);
         }
         .main-with-sidebar { margin-left: 220px; padding: 2rem 1rem 1rem 1rem; }
-        .bottombar button {
+        @media (max-width: 900px) {
+            .sidebar { display: none; }
+            .main-with-sidebar { margin-left: 0; }
+        }
+        /* Bottom bar for mobile */
+        .bottombar {
+            display: none;
+            position: fixed;
+            left: 0; right: 0; bottom: 0;
+            background: linear-gradient(90deg, #4444ff 0%, #222244 100%);
+            color: #fff;
+            height: 60px;
+            z-index: 1000;
+            box-shadow: 0 -2px 12px rgba(44,44,100,0.10);
+            border-top: 1px solid #333366;
+            justify-content: space-around;
+            align-items: center;
+        }
+        .bottombar .nav-btn {
             background: none;
             border: none;
             color: #fff;
-            font-size: 1.1rem;
+            font-size: 1.15rem;
             flex: 1;
             height: 100%;
             cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0.2em;
+            border-radius: 8px 8px 0 0;
+            transition: background 0.18s, color 0.18s;
         }
-        .bottombar button.active, .bottombar button:hover {
-            background: #4444ff;
+        .bottombar .nav-btn.active, .bottombar .nav-btn:hover {
+            background: #fff;
+            color: #4444ff;
+        }
+        .bottombar .icon {
+            font-size: 1.3em;
         }
         @media (max-width: 900px) {
             .bottombar { display: flex; }
-        }
-        /* File browser styles */
-        .file-browser {
-            background: #fff;
-            border-radius: 8px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-            padding: 1.5rem;
-            margin-bottom: 2rem;
-            min-height: 300px;
-        }
-        .file-browser .path {
-            font-size: 0.95rem;
-            color: #666;
-            margin-bottom: 1rem;
-        }
-        .file-browser ul {
-            list-style: none;
-            padding: 0;
-        }
-        .file-browser li {
-            padding: 0.5rem 0.2rem;
-            border-bottom: 1px solid #eee;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-        .file-browser li:last-child { border-bottom: none; }
-        .file-browser .icon { width: 1.2em; text-align: center; }
-        .file-browser .file-link, .file-browser .folder-link {
-            color: #4444ff;
-            cursor: pointer;
-            text-decoration: none;
-            background: none;
-            border: none;
-            font-size: 1rem;
-        }
-        .file-browser .file-link:hover, .file-browser .folder-link:hover {
-            text-decoration: underline;
-        }
-        .file-browser .file-content {
-            background: #f8f8f8;
-            border-radius: 6px;
-            padding: 1rem;
-            margin-top: 1rem;
-            font-family: monospace;
-            font-size: 0.98rem;
-            overflow-x: auto;
-            max-height: 350px;
         }
     </style>
 </head>
@@ -262,20 +243,37 @@ const homeTemplate = `<!DOCTYPE html>
     <div class="sidebar">
         <div class="logo">noplacelike</div>
         <div class="nav">
-            <button id="tab-clipboard" onclick="showTab('clipboard')">Clipboard</button>
-            <button id="tab-files" onclick="showTab('files')">Files</button>
-            <button id="tab-audio" onclick="showTab('audio')">Audio</button>
+            <button id="tab-home" onclick="showTab('home')"><span class="icon">🏠</span> Home</button>
+            <button id="tab-files" onclick="showTab('files')"><span class="icon">📁</span> Files</button>
+            <button id="tab-audio" onclick="showTab('audio')"><span class="icon">🎵</span> Audio</button>
+            <button id="tab-others" onclick="showTab('others')"><span class="icon">✨</span> Others</button>
         </div>
         <div class="spacer"></div>
         <div class="footer">v0.1.0</div>
     </div>
     <div class="bottombar">
-        <button id="tab-clipboard-mobile" onclick="showTab('clipboard')">Clipboard</button>
-        <button id="tab-files-mobile" onclick="showTab('files')">Files</button>
-        <button id="tab-audio-mobile" onclick="showTab('audio')">Audio</button>
+        <button id="tab-home-mobile" class="nav-btn" onclick="showTab('home')"><span class="icon">🏠</span><span style="font-size:0.85em;">Home</span></button>
+        <button id="tab-files-mobile" class="nav-btn" onclick="showTab('files')"><span class="icon">📁</span><span style="font-size:0.85em;">Files</span></button>
+        <button id="tab-audio-mobile" class="nav-btn" onclick="showTab('audio')"><span class="icon">🎵</span><span style="font-size:0.85em;">Audio</span></button>
+        <button id="tab-others-mobile" class="nav-btn" onclick="showTab('others')"><span class="icon">✨</span><span style="font-size:0.85em;">Others</span></button>
     </div>
     <main class="main-with-sidebar">
-        <div id="tab-content-clipboard">
+        <div id="tab-content-home">
+            <div class="card">
+                <h3 style="font-size: 1.2rem; margin-bottom: 1rem;">Live Clipboard Sync</h3>
+                <div style="display:flex;align-items:center;gap:1em;">
+                    <label style="display:flex;align-items:center;gap:0.5em;">
+                        <input type="checkbox" id="liveClipboardToggle" onchange="toggleLiveClipboard()">
+                        <span>Enable live clipboard sync</span>
+                    </label>
+                    <span id="liveClipboardStatus" style="color:#4444ff;font-weight:500;">OFF</span>
+                </div>
+                <div style="margin-top:1em;color:#888;font-size:0.95em;">
+                    When enabled, your clipboard will automatically sync with the server in real time.
+                </div>
+            </div>
+        </div>
+        <div id="tab-content-clipboard" style="display:none;">
             <!-- Clipboard Card -->
             <div class="card">
                 <h3 style="font-size: 1.2rem; margin-bottom: 1rem;">Clipboard Sharing</h3>
@@ -314,15 +312,19 @@ const homeTemplate = `<!DOCTYPE html>
                 <div id="audioFiles" style="margin-top: 1rem;"></div>
             </div>
         </div>
+        <div id="tab-content-others" style="display:none;">
+            <div class="card">
+                <h3 style="font-size: 1.2rem; margin-bottom: 1rem;">Other Features</h3>
+                <p>More functionalities coming soon.</p>
+            </div>
+        </div>
     </main>
     <script>
         // Tab switching logic
         function showTab(tab) {
-            document.getElementById('tab-content-clipboard').style.display = tab === 'clipboard' ? '' : 'none';
-            document.getElementById('tab-content-files').style.display = tab === 'files' ? '' : 'none';
-            document.getElementById('tab-content-audio').style.display = tab === 'audio' ? '' : 'none';
-            // Highlight active tab
-            ['clipboard','files','audio'].forEach(function(t) {
+            ['home','clipboard','files','audio','others'].forEach(function(t) {
+                var content = document.getElementById('tab-content-' + t);
+                if (content) content.style.display = (t === tab) ? '' : 'none';
                 var btn = document.getElementById('tab-' + t);
                 if (btn) btn.classList.toggle('active', t === tab);
                 var btnMobile = document.getElementById('tab-' + t + '-mobile');
@@ -330,7 +332,7 @@ const homeTemplate = `<!DOCTYPE html>
             });
         }
         // Default tab
-        showTab('clipboard');
+        showTab('home');
 
         // File browser logic
         var currentPath = '/';
@@ -562,6 +564,44 @@ const homeTemplate = `<!DOCTYPE html>
             } catch(e) {
                 console.error(e);
             }
+        }
+
+        // Live Clipboard Sync logic
+        let liveClipboardEnabled = false;
+        let clipboardSyncInterval = null;
+        function toggleLiveClipboard() {
+            liveClipboardEnabled = document.getElementById('liveClipboardToggle').checked;
+            document.getElementById('liveClipboardStatus').textContent = liveClipboardEnabled ? 'ON' : 'OFF';
+            if (liveClipboardEnabled) {
+                clipboardSyncInterval = setInterval(syncClipboardWithServer, 1500);
+            } else {
+                if (clipboardSyncInterval) clearInterval(clipboardSyncInterval);
+            }
+        }
+        async function syncClipboardWithServer() {
+            // Try to read from system clipboard (if allowed)
+            if (navigator.clipboard && window.isSecureContext) {
+                try {
+                    const text = await navigator.clipboard.readText();
+                    // Send to server if changed
+                    await fetch('/api/clipboard', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({text})
+                    });
+                } catch (e) {
+                    // Permission denied or not available
+                }
+            }
+            // Optionally, fetch server clipboard and update local clipboard
+            // Uncomment below to pull from server as well:
+            // try {
+            //     const res = await fetch('/api/clipboard');
+            //     const data = await res.json();
+            //     if (navigator.clipboard && window.isSecureContext) {
+            //         await navigator.clipboard.writeText(data.text || '');
+            //     }
+            // } catch (e) {}
         }
 
         // Initialize
