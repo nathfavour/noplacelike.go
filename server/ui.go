@@ -685,7 +685,7 @@ const homeTemplate = `<!DOCTYPE html>
         // Play audio file inline in content area
         function playFile(path) {
             var contentDiv = document.getElementById('file-browser-content');
-            contentDiv.innerHTML = '<audio controls style="width:100%; margin-top:1rem;" src="/api/v1/filesystem/serve?path=' + encodeURIComponent(path) + '"></audio>';
+            contentDiv.innerHTML = '<audio controls style="width:100%; margin-top:1rem;" src="/api/v1/filesystem/serve?path=' + encodeURI(path) + '"></audio>';
         }
     </script>
 </body>
