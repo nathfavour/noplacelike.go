@@ -261,6 +261,13 @@ const homeTemplate = `<!DOCTYPE html>
         @media (max-width: 900px) {
             .bottombar { display: flex; }
         }
+
+        /* File browser styles */
+        .file-browser-list { list-style: none; padding: 0; margin: 1rem 0; }
+        .file-browser-list li { display: flex; align-items: center; justify-content: space-between; padding: 0.75rem; border-bottom: 1px solid #eee; }
+        .file-browser-list li:hover { background: #fafafa; }
+        .file-button-group button { margin-left: 0.5rem; padding: 0.3rem 0.6rem; font-size: 0.9rem; border: none; border-radius: 4px; background: #4444ff; color: #fff; cursor: pointer; }
+        .file-button-group button:hover { background: #3333dd; }
     </style>
 </head>
 <body>
@@ -318,7 +325,7 @@ const homeTemplate = `<!DOCTYPE html>
             <div id="filesub-manager">
                 <div class="file-browser">
                     <div class="path" id="file-browser-path"></div>
-                    <ul id="file-browser-list"></ul>
+                    <ul id="file-browser-list" class="file-browser-list"></ul>
                     <div id="file-browser-content"></div>
                 </div>
             </div>
@@ -407,7 +414,12 @@ const homeTemplate = `<!DOCTYPE html>
                     });
                     (data.files || []).forEach(function(file) {
                         var li = document.createElement('li');
-                        li.innerHTML = '<span class="icon">📄</span> <button class="file-link" onclick="viewFile(\'' + joinPath(path, file.name) + '\')">' + file.name + '</button>';
+                        var buttons = '<button onclick="viewFile(\'' + joinPath(path, file.name) + '\')" class="button small">View</button>' +
+                                      '<button onclick="downloadFile(\'' + file.name + '\')" class="button small">Download</button>';
+                        if (file.name.match(/\.(mp3|wav|ogg|webm|m4a)$/i)) {
+                            buttons += '<button onclick="playFile(\'' + joinPath(path, file.name) + '\')" class="button small">Play</button>';
+                        }
+                        li.innerHTML = '<span class="icon">📄 ' + file.name + '</span><span class="file-button-group">' + buttons + '</span>';
                         ul.appendChild(li);
                     });
                 });
@@ -668,6 +680,12 @@ const homeTemplate = `<!DOCTYPE html>
         // Initial file browser load if Files tab active
         if (window._initialTab === 'files') {
             loadFileBrowser(defaultRoot);
+        }
+
+        // Play audio file inline in content area
+        function playFile(path) {
+            var contentDiv = document.getElementById('file-browser-content');
+            contentDiv.innerHTML = '<audio controls style="width:100%; margin-top:1rem;" src="/api/v1/filesystem/serve?path=' + encodeURIComponent(path) + '"></audio>';
         }
     </script>
 </body>
