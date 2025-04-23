@@ -779,6 +779,61 @@ const homeTemplate = `<!DOCTYPE html>
         function downloadPath(path) {
             window.open('/api/v1/filesystem/serve?path=' + encodeURI(path) + '&download=true', '_blank');
         }
+
+        // --- Connected Devices Logic ---
+        async function fetchDevices() {
+            try {
+                var res = await fetch('/api/devices');
+                var data = await res.json();
+                var list = document.getElementById('devices-list');
+                if (!data.devices || !data.devices.length) {
+                    list.innerHTML = '<span style="color:#aaa;">No devices connected.</span>';
+                    return;
+                }
+                var html = '';
+                for (var i = 0; i < data.devices.length; i++) {
+                    var device = data.devices[i];
+                    var safe = device.safe !== false;
+                    var status = safe ? '<span style="color:#4caf50;">Safe</span>' : '<span style="color:#ff9800;">Unsafe</span>';
+                    html += '<div style="margin-bottom:1em;display:flex;align-items:center;gap:1em;">'
+                        + '<span><b>' + (device.name ? device.name : device.id) + '</b> (' + status + ')</span>'
+                        + '<button class="button" onclick="openFileSelectorForDevice(\'' + device.id + '\',' + (!safe ? 'true' : 'false') + ')">Send File</button>'
+                        + '</div>';
+                }
+                list.innerHTML = html;
+            } catch (e) {
+                document.getElementById('devices-list').innerHTML = '<span style="color:#f00;">Failed to load devices.</span>';
+            }
+        }
+
+        function openFileSelectorForDevice(deviceId, needsApproval) {
+            var input = document.createElement('input');
+            input.type = 'file';
+            input.onchange = function() {
+                if (!input.files.length) return;
+                if (needsApproval && !confirm('This device is marked as unsafe. Are you sure you want to send a file?')) return;
+                var file = input.files[0];
+                var formData = new FormData();
+                formData.append('file', file);
+                fetch('/api/devices/' + encodeURIComponent(deviceId) + '/sendfile', {
+                    method: 'POST',
+                    body: formData
+                }).then(function(res) {
+                    if (res.ok) {
+                        alert('File sent to device!');
+                    } else {
+                        res.json().then(function(err) {
+                            alert('Failed to send file: ' + (err.error || res.statusText));
+                        });
+                    }
+                }).catch(function(e) {
+                    alert('Error sending file: ' + e.message);
+                });
+            };
+            input.click();
+        }
+        fetchDevices();
+        setInterval(fetchDevices, 10000);
     </script>
 </body>
 </html>`
