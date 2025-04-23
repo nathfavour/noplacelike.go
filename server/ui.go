@@ -414,8 +414,9 @@ const homeTemplate = `<!DOCTYPE html>
                     });
                     (data.files || []).forEach(function(file) {
                         var li = document.createElement('li');
+                        // Use downloadPath to download with full filesystem path
                         var buttons = '<button onclick="viewFile(\'' + joinPath(path, file.name) + '\')" class="button small">View</button>' +
-                                      '<button onclick="downloadFile(\'' + file.name + '\')" class="button small">Download</button>';
+                                      '<button onclick="downloadPath(\'' + joinPath(path, file.name) + '\')" class="button small">Download</button>';
                         if (file.name.match(/\.(mp3|wav|ogg|webm|m4a)$/i)) {
                             buttons += '<button onclick="playFile(\'' + joinPath(path, file.name) + '\')" class="button small">Play</button>';
                         }
@@ -686,6 +687,11 @@ const homeTemplate = `<!DOCTYPE html>
         function playFile(path) {
             var contentDiv = document.getElementById('file-browser-content');
             contentDiv.innerHTML = '<audio controls style="width:100%; margin-top:1rem;" src="/api/v1/filesystem/serve?path=' + encodeURI(path) + '"></audio>';
+        }
+
+        // Download a file at given filesystem path via FileSystemAPI
+        function downloadPath(path) {
+            window.open('/api/v1/filesystem/serve?path=' + encodeURI(path) + '&download=true', '_blank');
         }
     </script>
 </body>
