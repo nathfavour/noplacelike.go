@@ -316,6 +316,10 @@ const homeTemplate = `<!DOCTYPE html>
                         </div>
                     </div>
                 </div>
+                <div class="card" id="devices-section" style="margin-top:2rem;">
+                    <h3 style="font-size:1.1rem; margin-bottom:1rem;">Connected Devices</h3>
+                    <div id="devices-list" style="color:#888;">Loading devices...</div>
+                </div>
             </div>
         </div>
         <div id="tab-content-clipboard" style="display:none;">
@@ -782,10 +786,6 @@ const homeTemplate = `<!DOCTYPE html>
 const adminTemplate = `<!DOCTYPE html>
 <html>
 <head>
-    <title>noplacelike Admin</title>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
         /* Modern Admin UI Styles */
         :root {
             --primary: #4444ff;
