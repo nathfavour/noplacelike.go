@@ -57,6 +57,7 @@ func (a *API) CreateRoutes(router *gin.Engine) {
 				clipboard.POST("", a.clipboard.SetClipboard)
 				clipboard.GET("/history", a.clipboard.GetClipboardHistory)
 				clipboard.DELETE("/history", a.clipboard.ClearClipboardHistory)
+				clipboard.GET("/stream", a.clipboard.StreamClipboardSSE)
 			}
 
 			// File operations

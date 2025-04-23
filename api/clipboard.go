@@ -1,7 +1,10 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -66,7 +69,7 @@ func (c *ClipboardAPI) GetClipboard(ctx *gin.Context) {
 			c.mu.Unlock()
 			c.mu.RLock()
 		}
-		
+
 		ctx.JSON(http.StatusOK, gin.H{
 			"text": text,
 		})
@@ -160,5 +163,54 @@ func (c *ClipboardAPI) addToHistory(text string) {
 	// Trim if exceeding max size
 	if len(c.history) > c.historyMaxSize {
 		c.history = c.history[:c.historyMaxSize]
+	}
+
+	// Append to history file
+	_ = appendClipboardHistoryToFile(entry)
+}
+
+// appendClipboardHistoryToFile appends a clipboard entry to ~/.noplacelike/clipboard/history.txt
+func appendClipboardHistoryToFile(entry ClipboardEntry) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	dir := filepath.Join(home, ".noplacelike", "clipboard")
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return err
+	}
+	fpath := filepath.Join(dir, "history.txt")
+	f, err := os.OpenFile(fpath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	line := fmt.Sprintf("%s\t%s\n", entry.Timestamp.Format(time.RFC3339), entry.Text)
+	_, err = f.WriteString(line)
+	return err
+}
+
+// StreamClipboardSSE streams clipboard changes to clients using Server-Sent Events
+func (c *ClipboardAPI) StreamClipboardSSE(ctx *gin.Context) {
+	ctx.Writer.Header().Set("Content-Type", "text/event-stream")
+	ctx.Writer.Header().Set("Cache-Control", "no-cache")
+	ctx.Writer.Header().Set("Connection", "keep-alive")
+	ctx.Writer.Flush()
+
+	lastText := ""
+	for {
+		c.mu.RLock()
+		text := c.currentText
+		c.mu.RUnlock()
+		if text != lastText {
+			fmt.Fprintf(ctx.Writer, "data: %s\n\n", text)
+			ctx.Writer.Flush()
+			lastText = text
+		}
+		// Check if client closed connection
+		if ctx.Writer.CloseNotify() != nil {
+			break
+		}
+		time.Sleep(1 * time.Second)
 	}
 }

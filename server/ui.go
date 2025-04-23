@@ -302,6 +302,20 @@ const homeTemplate = `<!DOCTYPE html>
                 <div style="margin-top:1em;color:#888;font-size:0.95em;">
                     When enabled, your clipboard will automatically sync with the server in real time.
                 </div>
+                <div id="clipboard-controls" style="margin-top:2em;">
+                    <div class="card" style="margin-bottom:1em;">
+                        <h4 style="margin-bottom:0.5em;">Clipboard Controls</h4>
+                        <div style="display:flex;gap:0.5em;align-items:center;flex-wrap:wrap;">
+                            <button class="button" onclick="sendClipboardToServer()">Send clipboard to others</button>
+                            <button class="button" onclick="receiveClipboardFromServer()">Receive clipboard from server</button>
+                            <span id="clipboardSyncStatus" style="color:#888;font-size:0.95em;"></span>
+                        </div>
+                        <div style="margin-top:1em;">
+                            <textarea id="manualClipboardInput" class="textarea" placeholder="Type here to send to other devices (does not affect your clipboard unless live sync is ON)"></textarea>
+                            <button class="button" style="margin-top:0.5em;" onclick="sendManualClipboard()">Send to others</button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
         <div id="tab-content-clipboard" style="display:none;">
@@ -665,6 +679,54 @@ const homeTemplate = `<!DOCTYPE html>
             //         await navigator.clipboard.writeText(data.text || '');
             //     }
             // } catch (e) {}
+        }
+
+        // Clipboard advanced controls
+        async function sendClipboardToServer() {
+            if (navigator.clipboard && window.isSecureContext) {
+                try {
+                    const text = await navigator.clipboard.readText();
+                    await fetch('/api/clipboard', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({text})
+                    });
+                    setClipboardSyncStatus('Clipboard sent to all devices.');
+                } catch (e) {
+                    setClipboardSyncStatus('Failed to read clipboard.');
+                }
+            }
+        }
+
+        async function receiveClipboardFromServer() {
+            try {
+                const res = await fetch('/api/clipboard');
+                const data = await res.json();
+                if (navigator.clipboard && window.isSecureContext) {
+                    await navigator.clipboard.writeText(data.text || '');
+                    setClipboardSyncStatus('Clipboard received from server.');
+                } else {
+                    setClipboardSyncStatus('Clipboard API not available.');
+                }
+            } catch (e) {
+                setClipboardSyncStatus('Failed to fetch clipboard from server.');
+            }
+        }
+
+        async function sendManualClipboard() {
+            const text = document.getElementById('manualClipboardInput').value;
+            if (!text) return setClipboardSyncStatus('No text to send.');
+            await fetch('/api/clipboard', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({text})
+            });
+            setClipboardSyncStatus('Manual text sent to all devices.');
+        }
+
+        function setClipboardSyncStatus(msg) {
+            document.getElementById('clipboardSyncStatus').textContent = msg;
+            setTimeout(() => { document.getElementById('clipboardSyncStatus').textContent = ''; }, 3000);
         }
 
         // Initialize
