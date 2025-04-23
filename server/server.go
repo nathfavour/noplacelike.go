@@ -17,21 +17,34 @@ import (
 	"github.com/nathfavour/noplacelike.go/config"
 )
 
+type DeviceInfo struct {
+	ID        string    `json:"id"`
+	UserAgent string    `json:"userAgent"`
+	IP        string    `json:"ip"`
+	LastSeen  time.Time `json:"lastSeen"`
+	Safe      bool      `json:"safe"`
+}
+
 // Server represents the NoPlaceLike server
 type Server struct {
 	config    *config.Config
 	router    *gin.Engine
 	server    *http.Server
-	clipboard string // In-memory clipboard storage
+	clipboard string                 // In-memory clipboard storage
+	devices   map[string]*DeviceInfo // deviceID -> info
 }
 
 // NewServer creates a new HTTP server
 func NewServer(config *config.Config) *Server {
 	// Initialize server without creating directories
 	server := &Server{
-		config: config,
-		router: gin.Default(),
+		config:  config,
+		router:  gin.Default(),
+		devices: make(map[string]*DeviceInfo),
 	}
+
+	// Add device tracking middleware
+	server.router.Use(server.deviceTrackingMiddleware)
 
 	// Initialize routes
 	server.setupRoutes()
@@ -85,6 +98,11 @@ func (s *Server) setupRoutes() {
 
 	// Register API documentation routes
 	s.registerDocRoutes()
+
+	// Devices API
+	s.router.GET("/api/v1/devices", s.getDevices)
+	s.router.POST("/api/v1/devices/:id/safe", s.markDeviceSafe)
+	s.router.POST("/api/v1/devices/:id/unsafe", s.unmarkDeviceSafe)
 }
 
 // ensureDirExists creates a directory if it doesn't exist
@@ -238,4 +256,70 @@ func getOutboundIP() (string, error) {
 
 	localAddr := conn.LocalAddr().(*net.UDPAddr)
 	return localAddr.IP.String(), nil
+}
+
+// deviceTrackingMiddleware tracks devices by ID, User-Agent, and IP
+func (s *Server) deviceTrackingMiddleware(c *gin.Context) {
+	// Try to get device ID from cookie or header
+	deviceID, err := c.Cookie("npl_device_id")
+	if err != nil || deviceID == "" {
+		deviceID = c.GetHeader("X-NPL-Device-ID")
+	}
+	if deviceID == "" {
+		// Generate a new device ID
+		deviceID = generateDeviceID()
+		// Set cookie for future requests
+		c.SetCookie("npl_device_id", deviceID, 365*24*3600, "/", "", false, true)
+	}
+	userAgent := c.Request.UserAgent()
+	ip := c.ClientIP()
+	s.devices[deviceID] = &DeviceInfo{
+		ID:        deviceID,
+		UserAgent: userAgent,
+		IP:        ip,
+		LastSeen:  time.Now(),
+		Safe:      s.devices[deviceID] != nil && s.devices[deviceID].Safe,
+	}
+	// Attach deviceID to context for use in handlers
+	c.Set("deviceID", deviceID)
+	c.Next()
+}
+
+// generateDeviceID creates a random device ID
+func generateDeviceID() string {
+	return fmt.Sprintf("dev-%d-%d", time.Now().UnixNano(), os.Getpid())
+}
+
+// getDevices returns all connected devices except the requester
+func (s *Server) getDevices(c *gin.Context) {
+	requesterID, _ := c.Get("deviceID")
+	devices := []*DeviceInfo{}
+	for id, dev := range s.devices {
+		if id != requesterID {
+			devices = append(devices, dev)
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{"devices": devices})
+}
+
+// markDeviceSafe marks a device as safe
+func (s *Server) markDeviceSafe(c *gin.Context) {
+	id := c.Param("id")
+	if dev, ok := s.devices[id]; ok {
+		dev.Safe = true
+		c.JSON(http.StatusOK, gin.H{"status": "success"})
+		return
+	}
+	c.JSON(http.StatusNotFound, gin.H{"error": "Device not found"})
+}
+
+// unmarkDeviceSafe marks a device as not safe
+func (s *Server) unmarkDeviceSafe(c *gin.Context) {
+	id := c.Param("id")
+	if dev, ok := s.devices[id]; ok {
+		dev.Safe = false
+		c.JSON(http.StatusOK, gin.H{"status": "success"})
+		return
+	}
+	c.JSON(http.StatusNotFound, gin.H{"error": "Device not found"})
 }
