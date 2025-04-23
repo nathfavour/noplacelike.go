@@ -650,11 +650,31 @@ const homeTemplate = `<!DOCTYPE html>
             liveClipboardEnabled = document.getElementById('liveClipboardToggle').checked;
             document.getElementById('liveClipboardStatus').textContent = liveClipboardEnabled ? 'ON' : 'OFF';
             if (liveClipboardEnabled) {
+                // Request clipboard permissions on user gesture
+                if (navigator.permissions) {
+                    navigator.permissions.query({name: 'clipboard-read'}).then(function(result) {
+                        if (result.state === 'denied') {
+                            setClipboardSyncStatus('Clipboard read permission denied. Live sync will not work.');
+                            document.getElementById('liveClipboardToggle').checked = false;
+                            liveClipboardEnabled = false;
+                            return;
+                        }
+                    });
+                    navigator.permissions.query({name: 'clipboard-write'}).then(function(result) {
+                        if (result.state === 'denied') {
+                            setClipboardSyncStatus('Clipboard write permission denied. Live sync will not work.');
+                            document.getElementById('liveClipboardToggle').checked = false;
+                            liveClipboardEnabled = false;
+                            return;
+                        }
+                    });
+                }
                 clipboardSyncInterval = setInterval(syncClipboardWithServer, 1500);
             } else {
                 if (clipboardSyncInterval) clearInterval(clipboardSyncInterval);
             }
         }
+
         async function syncClipboardWithServer() {
             // Try to read from system clipboard (if allowed)
             if (navigator.clipboard && window.isSecureContext) {
