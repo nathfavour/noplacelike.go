@@ -5,6 +5,7 @@ go 1.22.2
 require (
 	github.com/atotto/clipboard v0.1.4
 	github.com/gin-gonic/gin v1.9.1
+	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/websocket v1.5.0
 	github.com/mdp/qrterminal/v3 v3.2.0
 	github.com/shirou/gopsutil/v3 v3.23.7
