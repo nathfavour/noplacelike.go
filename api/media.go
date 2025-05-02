@@ -3,10 +3,10 @@ package api
 import (
 	// "errors"
 	"net/http"
-	"strconv"
-	"time"
 	"os"
 	"path/filepath"
+	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -80,7 +80,7 @@ func (m *MediaAPI) GetAudioDevices(c *gin.Context) {
 // StreamAudio streams audio over WebSocket
 func (m *MediaAPI) StreamAudio(c *gin.Context) {
 	// Check if audio streaming is enabled
-	if (!m.config.EnableAudioStreaming) {
+	if !m.config.EnableAudioStreaming {
 		c.JSON(http.StatusForbidden, gin.H{
 			"error": "Audio streaming is disabled",
 		})
@@ -119,7 +119,7 @@ func (m *MediaAPI) StreamAudio(c *gin.Context) {
 		if err != nil {
 			break // Exit on connection close or error
 		}
-		
+
 		// Send a ping every 5 seconds to keep connection alive
 		time.Sleep(5 * time.Second)
 		if err := conn.WriteJSON(map[string]string{"type": "ping"}); err != nil {
@@ -131,7 +131,7 @@ func (m *MediaAPI) StreamAudio(c *gin.Context) {
 // StreamScreen streams screen content over WebSocket
 func (m *MediaAPI) StreamScreen(c *gin.Context) {
 	// Check if screen streaming is enabled
-	if (!m.config.EnableScreenStreaming) {
+	if !m.config.EnableScreenStreaming {
 		c.JSON(http.StatusForbidden, gin.H{
 			"error": "Screen streaming is disabled",
 		})
@@ -141,7 +141,7 @@ func (m *MediaAPI) StreamScreen(c *gin.Context) {
 	// Get streaming parameters
 	quality := c.DefaultQuery("quality", "medium")
 	fpsStr := c.DefaultQuery("fps", "15")
-	
+
 	fps, err := strconv.Atoi(fpsStr)
 	if err != nil || fps < 1 || fps > 30 {
 		fps = 15 // Default to 15 FPS if invalid
@@ -177,7 +177,7 @@ func (m *MediaAPI) StreamScreen(c *gin.Context) {
 		if err != nil {
 			break // Exit on connection close or error
 		}
-		
+
 		// Send a ping every 5 seconds to keep connection alive
 		time.Sleep(5 * time.Second)
 		if err := conn.WriteJSON(map[string]string{"type": "ping"}); err != nil {
@@ -188,37 +188,46 @@ func (m *MediaAPI) StreamScreen(c *gin.Context) {
 
 // MediaDirInfo represents a directory with media info
 type MediaDirInfo struct {
-	Path         string   `json:"path"`
-	AudioCount   int      `json:"audioCount"`
-	TotalCount   int      `json:"totalCount"`
-	Ratio        float64  `json:"ratio"`
-	SampleFiles  []string `json:"sampleFiles"`
+	Path        string   `json:"path"`
+	AudioCount  int      `json:"audioCount"`
+	TotalCount  int      `json:"totalCount"`
+	Ratio       float64  `json:"ratio"`
+	SampleFiles []string `json:"sampleFiles"`
 }
 
 // ScanMediaDirectories scans allowed paths for media-rich directories
 func (m *MediaAPI) ScanMediaDirectories(c *gin.Context) {
 	var results []MediaDirInfo
 	audioExts := map[string]bool{".mp3": true, ".wav": true, ".flac": true, ".aac": true, ".ogg": true, ".m4a": true}
+	visited := make(map[string]bool)
 	for _, base := range m.config.AllowedPaths {
 		_ = filepath.Walk(base, func(path string, info os.FileInfo, err error) error {
 			if err != nil || !info.IsDir() {
 				return nil
 			}
+			if visited[path] {
+				return nil
+			}
+			visited[path] = true
 			files, _ := os.ReadDir(path)
 			total, audio := 0, 0
 			var samples []string
 			for _, f := range files {
-				if f.IsDir() { continue }
+				if f.IsDir() {
+					continue
+				}
 				total++
 				ext := filepath.Ext(f.Name())
 				if audioExts[ext] {
 					audio++
-					if len(samples) < 3 { samples = append(samples, f.Name()) }
+					if len(samples) < 3 {
+						samples = append(samples, f.Name())
+					}
 				}
 			}
 			if total > 0 && float64(audio)/float64(total) > 0.5 && audio >= 3 {
 				results = append(results, MediaDirInfo{
-					Path: path, AudioCount: audio, TotalCount: total, Ratio: float64(audio)/float64(total), SampleFiles: samples,
+					Path: path, AudioCount: audio, TotalCount: total, Ratio: float64(audio) / float64(total), SampleFiles: samples,
 				})
 			}
 			return nil
@@ -245,6 +254,63 @@ func (m *MediaAPI) ListMediaFiles(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"files": audioFiles})
 }
 
+// StreamAudioFile streams a specific audio file to the client (robust HTTP streaming)
+func (m *MediaAPI) StreamAudioFile(c *gin.Context) {
+	file := c.Query("file")
+	if file == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing file"})
+		return
+	}
+	// Security: Only allow files in allowed paths
+	allowed := false
+	for _, base := range m.config.AllowedPaths {
+		if isSubPath(file, base) {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Not allowed"})
+		return
+	}
+	// Check file exists and is audio
+	info, err := os.Stat(file)
+	if err != nil || info.IsDir() {
+		c.JSON(http.StatusNotFound, gin.H{"error": "File not found"})
+		return
+	}
+	ext := filepath.Ext(file)
+	audioExts := map[string]bool{".mp3": true, ".wav": true, ".flac": true, ".aac": true, ".ogg": true, ".m4a": true}
+	if !audioExts[ext] {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Not an audio file"})
+		return
+	}
+	// Set headers for streaming
+	c.Header("Content-Type", getAudioMimeType(ext))
+	c.Header("Content-Disposition", "inline; filename="+filepath.Base(file))
+	c.File(file)
+}
+
+// getAudioMimeType returns the MIME type for a given audio file extension
+func getAudioMimeType(ext string) string {
+	switch ext {
+	case ".mp3":
+		return "audio/mpeg"
+	case ".wav":
+		return "audio/wav"
+	case ".flac":
+		return "audio/flac"
+	case ".aac":
+		return "audio/aac"
+	case ".ogg":
+		return "audio/ogg"
+	case ".m4a":
+		return "audio/mp4"
+	default:
+		return "application/octet-stream"
+	}
+}
+
 // GetMediaMetadata returns basic metadata for an audio file
 func (m *MediaAPI) GetMediaMetadata(c *gin.Context) {
 	file := c.Query("file")
@@ -258,8 +324,8 @@ func (m *MediaAPI) GetMediaMetadata(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"name": info.Name(),
-		"size": info.Size(),
+		"name":    info.Name(),
+		"size":    info.Size(),
 		"modTime": info.ModTime(),
 		// TODO: Add duration/metadata extraction if needed
 	})

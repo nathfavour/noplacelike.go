@@ -22,8 +22,8 @@ type APIEndpoint struct {
 
 // APICategory groups endpoints by functionality
 type APICategory struct {
-	Name        string       `json:"name"`
-	Description string       `json:"description"`
+	Name        string        `json:"name"`
+	Description string        `json:"description"`
 	Endpoints   []APIEndpoint `json:"endpoints"`
 }
 
@@ -128,7 +128,7 @@ func InitDocs() {
 					"path": "Directory path to list",
 				},
 				Response: map[string]interface{}{
-					"path": "/path/to/dir",
+					"path":        "/path/to/dir",
 					"directories": []string{"dir1", "dir2"},
 					"files": []map[string]interface{}{
 						{"name": "file1.txt", "size": 1024, "modified": "2023-06-01T12:00:00Z"},
@@ -193,11 +193,11 @@ func InitDocs() {
 				Method:      "GET",
 				Description: "Get system information",
 				Response: map[string]interface{}{
-					"hostname":  "computer-name",
-					"platform":  "linux",
-					"cpuUsage":  "23.5%",
+					"hostname":    "computer-name",
+					"platform":    "linux",
+					"cpuUsage":    "23.5%",
 					"memoryUsage": "45.2%",
-					"uptime":    "3d 12h 5m",
+					"uptime":      "3d 12h 5m",
 				},
 				Example: "curl -X GET http://localhost:8080/api/v1/system/info",
 			},
@@ -238,16 +238,62 @@ func InitDocs() {
 			{
 				Path:        "/api/v1/media/audio/stream",
 				Method:      "GET",
-				Description: "Stream system audio output",
+				Description: "Stream system audio output (WebSocket)",
 				Parameters: map[string]string{
 					"device": "Audio device ID (optional)",
 				},
 				Example: "Accessible via WebSocket: ws://localhost:8080/api/v1/media/audio/stream?device=default",
 			},
 			{
+				Path:        "/api/v1/media/audio/streamfile",
+				Method:      "GET",
+				Description: "Stream a specific audio file (robust HTTP streaming)",
+				Parameters: map[string]string{
+					"file": "Path to the audio file to stream",
+				},
+				Example: "curl -X GET 'http://localhost:8080/api/v1/media/audio/streamfile?file=/path/to/song.mp3' --output song.mp3",
+			},
+			{
+				Path:        "/api/v1/media/audio/metadata",
+				Method:      "GET",
+				Description: "Get metadata for an audio file",
+				Parameters: map[string]string{
+					"file": "Path to the audio file",
+				},
+				Response: map[string]interface{}{
+					"name":    "song.mp3",
+					"size":    1234567,
+					"modTime": "2023-06-01T12:00:00Z",
+				},
+				Example: "curl -X GET 'http://localhost:8080/api/v1/media/audio/metadata?file=/path/to/song.mp3'",
+			},
+			{
+				Path:        "/api/v1/media/dirs",
+				Method:      "GET",
+				Description: "List directories rich in audio files (media directories)",
+				Response: map[string]interface{}{
+					"mediaDirs": []map[string]interface{}{
+						{"path": "/music", "audioCount": 10, "totalCount": 12, "ratio": 0.83, "sampleFiles": []string{"song1.mp3", "song2.mp3"}},
+					},
+				},
+				Example: "curl -X GET http://localhost:8080/api/v1/media/dirs",
+			},
+			{
+				Path:        "/api/v1/media/files",
+				Method:      "GET",
+				Description: "List audio files in a directory",
+				Parameters: map[string]string{
+					"dir": "Path to the directory",
+				},
+				Response: map[string]interface{}{
+					"files": []string{"song1.mp3", "song2.mp3"},
+				},
+				Example: "curl -X GET 'http://localhost:8080/api/v1/media/files?dir=/music'",
+			},
+			{
 				Path:        "/api/v1/media/screen",
 				Method:      "GET",
-				Description: "Stream screen content",
+				Description: "Stream screen content (WebSocket)",
 				Parameters: map[string]string{
 					"quality": "Stream quality (low, medium, high)",
 					"fps":     "Frames per second (1-30)",
@@ -256,7 +302,7 @@ func InitDocs() {
 			},
 		},
 	})
-	
+
 	// Sort categories alphabetically
 	sort.Slice(apiDocs, func(i, j int) bool {
 		return apiDocs[i].Name < apiDocs[j].Name
@@ -607,5 +653,4 @@ const apiDocsTemplate = `<!DOCTYPE html>
         document.addEventListener('DOMContentLoaded', loadDocs);
     </script>
 </body>
-</html>
-`
+</html>`
