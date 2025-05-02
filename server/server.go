@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -23,6 +24,15 @@ type DeviceInfo struct {
 	IP        string    `json:"ip"`
 	LastSeen  time.Time `json:"lastSeen"`
 	Safe      bool      `json:"safe"`
+}
+
+// TransferHistoryEntry represents a file transfer event
+type TransferHistoryEntry struct {
+	ID        string    `json:"id"`
+	Type      string    `json:"type"` // send or receive
+	Filename  string    `json:"filename"`
+	DeviceID  string    `json:"deviceId"`
+	Timestamp time.Time `json:"timestamp"`
 }
 
 // Server represents the NoPlaceLike server
@@ -103,6 +113,15 @@ func (s *Server) setupRoutes() {
 	s.router.GET("/api/v1/devices", s.getDevices)
 	s.router.POST("/api/v1/devices/:id/safe", s.markDeviceSafe)
 	s.router.POST("/api/v1/devices/:id/unsafe", s.unmarkDeviceSafe)
+	s.router.DELETE("/api/v1/devices/:id", s.RemoveDevice)
+
+	// Transfer history API
+	s.router.GET("/api/v1/transfer_history", s.GetTransferHistory)
+
+	// Directory monitoring API
+	s.router.POST("/api/v1/monitor/start", s.StartMonitor)
+	s.router.POST("/api/v1/monitor/stop", s.StopMonitor)
+	s.router.GET("/api/v1/monitor/status", s.MonitorStatus)
 }
 
 // ensureDirExists creates a directory if it doesn't exist
@@ -322,4 +341,96 @@ func (s *Server) unmarkDeviceSafe(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusNotFound, gin.H{"error": "Device not found"})
+}
+
+// logTransfer appends a transfer event to ~/.noplacelike/transfer_history.json
+func logTransfer(entry TransferHistoryEntry) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return
+	}
+	dir := filepath.Join(home, ".noplacelike")
+	_ = os.MkdirAll(dir, 0700)
+	fpath := filepath.Join(dir, "transfer_history.json")
+
+	var history []TransferHistoryEntry
+	if data, err := os.ReadFile(fpath); err == nil {
+		_ = json.Unmarshal(data, &history)
+	}
+	history = append([]TransferHistoryEntry{entry}, history...)
+	if len(history) > 1000 {
+		history = history[:1000]
+	}
+	_ = os.WriteFile(fpath, []byte(jsonMustMarshal(history)), 0644)
+}
+
+func jsonMustMarshal(v any) string {
+	data, _ := json.MarshalIndent(v, "", "  ")
+	return string(data)
+}
+
+// GetTransferHistory returns the transfer history
+func (s *Server) GetTransferHistory(c *gin.Context) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get home dir"})
+		return
+	}
+	fpath := filepath.Join(home, ".noplacelike", "transfer_history.json")
+	var history []TransferHistoryEntry
+	if data, err := os.ReadFile(fpath); err == nil {
+		_ = json.Unmarshal(data, &history)
+	}
+	c.JSON(http.StatusOK, gin.H{"history": history})
+}
+
+// RemoveDevice removes a device from the list
+func (s *Server) RemoveDevice(c *gin.Context) {
+	id := c.Param("id")
+	if _, ok := s.devices[id]; ok {
+		delete(s.devices, id)
+		c.JSON(http.StatusOK, gin.H{"status": "removed"})
+		return
+	}
+	c.JSON(http.StatusNotFound, gin.H{"error": "Device not found"})
+}
+
+// Directory monitoring (simple polling-based)
+var monitoredDirs = make(map[string]time.Time)
+
+func (s *Server) StartMonitor(c *gin.Context) {
+	var req struct {
+		Path string `json:"path"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || req.Path == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing path"})
+		return
+	}
+	monitoredDirs[req.Path] = time.Now()
+	c.JSON(http.StatusOK, gin.H{"status": "monitoring", "path": req.Path})
+}
+
+func (s *Server) StopMonitor(c *gin.Context) {
+	var req struct {
+		Path string `json:"path"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || req.Path == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing path"})
+		return
+	}
+	delete(monitoredDirs, req.Path)
+	c.JSON(http.StatusOK, gin.H{"status": "stopped", "path": req.Path})
+}
+
+func (s *Server) MonitorStatus(c *gin.Context) {
+	changes := make(map[string][]string)
+	for dir := range monitoredDirs {
+		files, _ := os.ReadDir(dir)
+		var names []string
+		for _, f := range files {
+			names = append(names, f.Name())
+		}
+		changes[dir] = names
+	}
+	c.JSON(http.StatusOK, gin.H{"monitored": changes})
 }

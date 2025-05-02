@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+	"os"
+	"path/filepath"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -78,7 +80,7 @@ func (m *MediaAPI) GetAudioDevices(c *gin.Context) {
 // StreamAudio streams audio over WebSocket
 func (m *MediaAPI) StreamAudio(c *gin.Context) {
 	// Check if audio streaming is enabled
-	if !m.config.EnableAudioStreaming {
+	if (!m.config.EnableAudioStreaming) {
 		c.JSON(http.StatusForbidden, gin.H{
 			"error": "Audio streaming is disabled",
 		})
@@ -129,7 +131,7 @@ func (m *MediaAPI) StreamAudio(c *gin.Context) {
 // StreamScreen streams screen content over WebSocket
 func (m *MediaAPI) StreamScreen(c *gin.Context) {
 	// Check if screen streaming is enabled
-	if !m.config.EnableScreenStreaming {
+	if (!m.config.EnableScreenStreaming) {
 		c.JSON(http.StatusForbidden, gin.H{
 			"error": "Screen streaming is disabled",
 		})
@@ -182,4 +184,83 @@ func (m *MediaAPI) StreamScreen(c *gin.Context) {
 			break
 		}
 	}
+}
+
+// MediaDirInfo represents a directory with media info
+type MediaDirInfo struct {
+	Path         string   `json:"path"`
+	AudioCount   int      `json:"audioCount"`
+	TotalCount   int      `json:"totalCount"`
+	Ratio        float64  `json:"ratio"`
+	SampleFiles  []string `json:"sampleFiles"`
+}
+
+// ScanMediaDirectories scans allowed paths for media-rich directories
+func (m *MediaAPI) ScanMediaDirectories(c *gin.Context) {
+	var results []MediaDirInfo
+	audioExts := map[string]bool{".mp3": true, ".wav": true, ".flac": true, ".aac": true, ".ogg": true, ".m4a": true}
+	for _, base := range m.config.AllowedPaths {
+		_ = filepath.Walk(base, func(path string, info os.FileInfo, err error) error {
+			if err != nil || !info.IsDir() {
+				return nil
+			}
+			files, _ := os.ReadDir(path)
+			total, audio := 0, 0
+			var samples []string
+			for _, f := range files {
+				if f.IsDir() { continue }
+				total++
+				ext := filepath.Ext(f.Name())
+				if audioExts[ext] {
+					audio++
+					if len(samples) < 3 { samples = append(samples, f.Name()) }
+				}
+			}
+			if total > 0 && float64(audio)/float64(total) > 0.5 && audio >= 3 {
+				results = append(results, MediaDirInfo{
+					Path: path, AudioCount: audio, TotalCount: total, Ratio: float64(audio)/float64(total), SampleFiles: samples,
+				})
+			}
+			return nil
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{"mediaDirs": results})
+}
+
+// ListMediaFiles lists audio files in a directory
+func (m *MediaAPI) ListMediaFiles(c *gin.Context) {
+	dir := c.Query("dir")
+	if dir == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing dir"})
+		return
+	}
+	files, _ := os.ReadDir(dir)
+	var audioFiles []string
+	audioExts := map[string]bool{".mp3": true, ".wav": true, ".flac": true, ".aac": true, ".ogg": true, ".m4a": true}
+	for _, f := range files {
+		if !f.IsDir() && audioExts[filepath.Ext(f.Name())] {
+			audioFiles = append(audioFiles, f.Name())
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{"files": audioFiles})
+}
+
+// GetMediaMetadata returns basic metadata for an audio file
+func (m *MediaAPI) GetMediaMetadata(c *gin.Context) {
+	file := c.Query("file")
+	if file == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing file"})
+		return
+	}
+	info, err := os.Stat(file)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "File not found"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"name": info.Name(),
+		"size": info.Size(),
+		"modTime": info.ModTime(),
+		// TODO: Add duration/metadata extraction if needed
+	})
 }

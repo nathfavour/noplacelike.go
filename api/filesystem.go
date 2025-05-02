@@ -12,7 +12,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/nathfavour/noplacelike.go/config"
+
 	// "strings" // Import strings package
+	"io"
 )
 
 // FileInfo represents information about a file
@@ -255,4 +257,137 @@ func (f *FileSystemAPI) ServeFile(c *gin.Context) {
 		return
 	}
 	c.File(expandedPath)
+}
+
+// CreateDirectory creates a new directory
+func (f *FileSystemAPI) CreateDirectory(c *gin.Context) {
+	var req struct {
+		Path string `json:"path"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || req.Path == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing path"})
+		return
+	}
+	if !f.isPathAllowed(req.Path) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Not allowed"})
+		return
+	}
+	if err := os.MkdirAll(expandPath(req.Path), 0755); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "created"})
+}
+
+// RenameFile renames a file or directory
+func (f *FileSystemAPI) RenameFile(c *gin.Context) {
+	var req struct{ OldPath, NewPath string }
+	if err := c.ShouldBindJSON(&req); err != nil || req.OldPath == "" || req.NewPath == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing path(s)"})
+		return
+	}
+	if !f.isPathAllowed(req.OldPath) || !f.isPathAllowed(req.NewPath) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Not allowed"})
+		return
+	}
+	if err := os.Rename(expandPath(req.OldPath), expandPath(req.NewPath)); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "renamed"})
+}
+
+// DeletePath deletes a file or directory
+func (f *FileSystemAPI) DeletePath(c *gin.Context) {
+	var req struct {
+		Path string `json:"path"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || req.Path == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing path"})
+		return
+	}
+	if !f.isPathAllowed(req.Path) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Not allowed"})
+		return
+	}
+	if err := os.RemoveAll(expandPath(req.Path)); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
+}
+
+// CopyFile copies a file
+func (f *FileSystemAPI) CopyFile(c *gin.Context) {
+	var req struct{ Src, Dst string }
+	if err := c.ShouldBindJSON(&req); err != nil || req.Src == "" || req.Dst == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing src/dst"})
+		return
+	}
+	if !f.isPathAllowed(req.Src) || !f.isPathAllowed(req.Dst) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Not allowed"})
+		return
+	}
+	src := expandPath(req.Src)
+	dst := expandPath(req.Dst)
+	in, err := os.Open(src)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	defer in.Close()
+	out, err := os.Create(dst)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	defer out.Close()
+	if _, err := io.Copy(out, in); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "copied"})
+}
+
+// MoveFile moves a file or directory
+func (f *FileSystemAPI) MoveFile(c *gin.Context) {
+	var req struct{ Src, Dst string }
+	if err := c.ShouldBindJSON(&req); err != nil || req.Src == "" || req.Dst == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing src/dst"})
+		return
+	}
+	if !f.isPathAllowed(req.Src) || !f.isPathAllowed(req.Dst) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Not allowed"})
+		return
+	}
+	if err := os.Rename(expandPath(req.Src), expandPath(req.Dst)); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "moved"})
+}
+
+// SearchFiles searches for files by name in allowed paths
+func (f *FileSystemAPI) SearchFiles(c *gin.Context) {
+	q := c.Query("q")
+	if q == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing query"})
+		return
+	}
+	var results []FileInfo
+	for _, base := range f.config.AllowedPaths {
+		_ = filepath.Walk(expandPath(base), func(path string, info os.FileInfo, err error) error {
+			if err == nil && info != nil && !info.IsDir() && filepath.Base(path) == q {
+				results = append(results, FileInfo{
+					Name:    info.Name(),
+					Size:    info.Size(),
+					IsDir:   false,
+					ModTime: info.ModTime(),
+					Mode:    info.Mode().String(),
+				})
+			}
+			return nil
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{"results": results})
 }
