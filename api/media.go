@@ -330,3 +330,81 @@ func (m *MediaAPI) GetMediaMetadata(c *gin.Context) {
 		// TODO: Add duration/metadata extraction if needed
 	})
 }
+
+// LiveAudioHub manages live audio WebSocket clients
+var liveAudioClients = make(map[*websocket.Conn]bool)
+var liveAudioBroadcast = make(chan []byte, 1024)
+
+// StartLiveAudioBroadcaster starts a goroutine to broadcast audio to all clients
+func StartLiveAudioBroadcaster() {
+	go func() {
+		for data := range liveAudioBroadcast {
+			for client := range liveAudioClients {
+				if err := client.WriteMessage(websocket.BinaryMessage, data); err != nil {
+					client.Close()
+					delete(liveAudioClients, client)
+				}
+			}
+		}
+	}()
+}
+
+// LiveAudioWebSocket streams live audio to clients via WebSocket
+func (m *MediaAPI) LiveAudioWebSocket(c *gin.Context) {
+	conn, err := m.wsUpgrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upgrade connection: " + err.Error()})
+		return
+	}
+	defer conn.Close()
+	liveAudioClients[conn] = true
+	// Keep connection alive
+	for {
+		_, _, err := conn.ReadMessage()
+		if err != nil {
+			delete(liveAudioClients, conn)
+			break
+		}
+	}
+}
+
+// Mock/placeholder: StartLiveAudioCapture simulates capturing system audio and broadcasting it
+func StartLiveAudioCapture() {
+	go func() {
+		// TODO: Replace this with actual system audio capture (e.g., using go-portaudio, ffmpeg, or platform-specific tools)
+		// For now, send silence (or a sine wave) as PCM/Opus/MP3 data every 20ms
+		for {
+			// Example: send 20ms of silence (44100Hz, 16bit, mono = 1764 bytes for 20ms)
+			// Replace with actual audio data in production
+			data := make([]byte, 1764)
+			liveAudioBroadcast <- data
+			time.Sleep(20 * time.Millisecond)
+		}
+	}()
+}
+
+// LiveAudioPage serves a simple HTML page that plays the live audio
+func LiveAudioPage(c *gin.Context) {
+	html := `<!DOCTYPE html>
+<html><head><title>Live Audio</title></head><body>
+<h2>Live Audio Stream</h2>
+<audio id="audio" controls autoplay></audio>
+<script>
+const audio = document.getElementById('audio');
+const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/api/v1/live/audio');
+let ctx, source, queue = [];
+ws.binaryType = 'arraybuffer';
+ws.onmessage = function(e) {
+    if (!ctx) {
+        ctx = new (window.AudioContext || window.webkitAudioContext)();
+        source = ctx.createBufferSource();
+    }
+    // For real PCM/Opus/MP3, decode and play here. For now, just ignore silence.
+    // Example: decode as PCM and play (requires actual PCM data)
+    // let buf = e.data; ...
+};
+ws.onclose = function() { audio.pause(); };
+</script>
+</body></html>`
+	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(html))
+}

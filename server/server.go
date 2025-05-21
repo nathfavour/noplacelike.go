@@ -56,6 +56,10 @@ func NewServer(config *config.Config) *Server {
 	// Add device tracking middleware
 	server.router.Use(server.deviceTrackingMiddleware)
 
+	// Start live audio broadcaster and mock capture
+	api.StartLiveAudioBroadcaster()
+	api.StartLiveAudioCapture()
+
 	// Initialize routes
 	server.setupRoutes()
 

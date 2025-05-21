@@ -108,6 +108,11 @@ func (a *API) CreateRoutes(router *gin.Engine) {
 				v1.GET("/docs/json", ServeAPIDocsJSON)
 			}
 
+			// Live audio streaming endpoint
+			v1.GET("/live/audio", a.media.LiveAudioWebSocket)
+			// Live audio HTML page
+			router.GET("/live/audio", LiveAudioPage)
+
 			// Ollama proxy endpoints
 			ollama := NewOllamaAPI("http://localhost:11434")
 			v1.Any("/ollama/*proxyPath", ollama.Proxy)
