@@ -37,6 +37,109 @@ func (s *Server) uiHomeWithTab(c *gin.Context, tab string) {
 	c.String(http.StatusOK, html)
 }
 
+// ollamaUI serves the Ollama chat UI
+func (s *Server) ollamaUI(c *gin.Context) {
+	html := `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ollama Chat</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #f5f7fa; margin: 0; }
+    .ollama-container { max-width: 700px; margin: 2rem auto; background: #fff; border-radius: 12px; box-shadow: 0 2px 16px #0001; padding: 2rem; }
+    h1 { text-align: center; color: #4444ff; }
+    .chat-history { min-height: 300px; max-height: 400px; overflow-y: auto; border: 1px solid #eee; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; background: #fafbfc; }
+    .msg { margin-bottom: 1.2em; }
+    .msg.user { text-align: right; }
+    .msg .bubble { display: inline-block; padding: 0.7em 1.2em; border-radius: 1.2em; max-width: 80%; }
+    .msg.user .bubble { background: #4444ff; color: #fff; }
+    .msg.bot .bubble { background: #e3e8ff; color: #222; }
+    .input-row { display: flex; gap: 0.5em; }
+    .input-row input, .input-row textarea { flex: 1; padding: 0.7em; border-radius: 8px; border: 1px solid #ccc; font-size: 1em; }
+    .input-row button { background: #4444ff; color: #fff; border: none; border-radius: 8px; padding: 0.7em 1.5em; font-size: 1em; cursor: pointer; }
+    .input-row button:disabled { opacity: 0.5; }
+    .model-select { margin-bottom: 1em; }
+    .model-select select { padding: 0.5em; border-radius: 6px; border: 1px solid #ccc; }
+  </style>
+</head>
+<body>
+  <div class="ollama-container">
+    <h1>Ollama Chat</h1>
+    <div class="model-select">
+      <label for="model">Model:</label>
+      <select id="model"></select>
+    </div>
+    <div class="chat-history" id="chatHistory"></div>
+    <form id="chatForm" class="input-row">
+      <textarea id="userInput" rows="2" placeholder="Type your message..." required></textarea>
+      <button type="submit">Send</button>
+    </form>
+  </div>
+  <script>
+    const chatHistory = document.getElementById('chatHistory');
+    const chatForm = document.getElementById('chatForm');
+    const userInput = document.getElementById('userInput');
+    const modelSelect = document.getElementById('model');
+    let currentModel = '';
+    let history = [];
+
+    async function fetchModels() {
+      const res = await fetch('/api/v1/ollama/api/tags');
+      const data = await res.json();
+      modelSelect.innerHTML = '';
+      (data.models || []).forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m.name;
+        opt.textContent = m.name;
+        modelSelect.appendChild(opt);
+      });
+      if (data.models && data.models.length) {
+        currentModel = data.models[0].name;
+      }
+    }
+
+    modelSelect.addEventListener('change', () => {
+      currentModel = modelSelect.value;
+    });
+
+    function addMessage(role, text) {
+      const msg = document.createElement('div');
+      msg.className = 'msg ' + (role === 'user' ? 'user' : 'bot');
+      msg.innerHTML = `<div class="bubble">${text}</div>`;
+      chatHistory.appendChild(msg);
+      chatHistory.scrollTop = chatHistory.scrollHeight;
+    }
+
+    chatForm.onsubmit = async (e) => {
+      e.preventDefault();
+      const text = userInput.value.trim();
+      if (!text || !currentModel) return;
+      addMessage('user', text);
+      userInput.value = '';
+      chatForm.querySelector('button').disabled = true;
+      // Send to Ollama API
+      const res = await fetch('/api/v1/ollama/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: currentModel, messages: [{ role: 'user', content: text }] })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        addMessage('bot', data.message && data.message.content ? data.message.content : '[No response]');
+      } else {
+        addMessage('bot', '[Error: ' + res.status + ']');
+      }
+      chatForm.querySelector('button').disabled = false;
+    };
+
+    fetchModels();
+  </script>
+</body>
+</html>`
+	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(html))
+}
+
 // HTML templates for UI components
 const homeTemplate = `<!DOCTYPE html>
 <html>
@@ -275,109 +378,6 @@ const homeTemplate = `<!DOCTYPE html>
         <div class="logo">noplacelike</div>
         <div class="nav">
             <button id="tab-home" onclick="showTab('home')"><span class="icon">🏠</span> Home</button>
-            <button id="tab-files" onclick="showTab('files')"><span class="icon">📁</span> Files</button>
-            <button id="tab-audio" onclick="showTab('audio')"><span class="icon">🎵</span> Audio</button>
-            <button id="tab-others" onclick="showTab('others')"><span class="icon">✨</span> Others</button>
-        </div>
-        <div class="spacer"></div>
-        <div class="footer">v0.1.0</div>
-    </div>
-    <div class="bottombar">
-        <button id="tab-home-mobile" class="nav-btn" onclick="showTab('home')"><span class="icon">🏠</span><span style="font-size:0.85em;">Home</span></button>
-        <button id="tab-files-mobile" class="nav-btn" onclick="showTab('files')"><span class="icon">📁</span><span style="font-size:0.85em;">Files</span></button>
-        <button id="tab-audio-mobile" class="nav-btn" onclick="showTab('audio')"><span class="icon">🎵</span><span style="font-size:0.85em;">Audio</span></button>
-        <button id="tab-others-mobile" class="nav-btn" onclick="showTab('others')"><span class="icon">✨</span><span style="font-size:0.85em;">Others</span></button>
-    </div>
-    <main class="main-with-sidebar">
-        <div id="tab-content-home">
-            <div class="card">
-                <h3 style="font-size: 1.2rem; margin-bottom: 1rem;">Live Clipboard Sync</h3>
-                <div style="display:flex;align-items:center;gap:1em;">
-                    <label style="display:flex;align-items:center;gap:0.5em;">
-                        <input type="checkbox" id="liveClipboardToggle" onchange="toggleLiveClipboard()">
-                        <span>Enable live clipboard sync</span>
-                    </label>
-                    <span id="liveClipboardStatus" style="color:#4444ff;font-weight:500;">OFF</span>
-                </div>
-                <div style="margin-top:1em;color:#888;font-size:0.95em;">
-                    When enabled, your clipboard will automatically sync with the server in real time.
-                </div>
-                <div id="clipboard-controls" style="margin-top:2em;">
-                    <div class="card" style="margin-bottom:1em;">
-                        <h4 style="margin-bottom:0.5em;">Clipboard Controls</h4>
-                        <div style="display:flex;gap:0.5em;align-items:center;flex-wrap:wrap;">
-                            <button class="button" onclick="sendClipboardToServer()">Send clipboard to others</button>
-                            <button class="button" onclick="receiveClipboardFromServer()">Receive clipboard from server</button>
-                            <span id="clipboardSyncStatus" style="color:#888;font-size:0.95em;"></span>
-                        </div>
-                        <div style="margin-top:1em;">
-                            <textarea id="manualClipboardInput" class="textarea" placeholder="Type here to send to other devices (does not affect your clipboard unless live sync is ON)"></textarea>
-                            <button class="button" style="margin-top:0.5em;" onclick="sendManualClipboard()">Send to others</button>
-                        </div>
-                    </div>
-                </div>
-                <div class="card" id="devices-section" style="margin-top:2rem;">
-                    <h3 style="font-size:1.1rem; margin-bottom:1rem;">Connected Devices</h3>
-                    <div id="devices-list" style="color:#888;">Loading devices...</div>
-                </div>
-            </div>
-        </div>
-        <div id="tab-content-clipboard" style="display:none;">
-            <!-- Clipboard Card -->
-            <div class="card">
-                <h3 style="font-size: 1.2rem; margin-bottom: 1rem;">Clipboard Sharing</h3>
-                <textarea id="clipboard" class="textarea" placeholder="Paste text here to share..."></textarea>
-                <button onclick="shareClipboard()" class="button">Share Clipboard</button>
-            </div>
-            <div class="card">
-                <h3 style="font-size: 1.2rem; margin-bottom: 1rem;">Server Clipboard</h3>
-                <div id="serverClipboard" class="textarea" style="overflow:auto; background:#f0f0f0;"></div>
-                <button onclick="fetchServerClipboard()" class="button" style="margin-top:0.5rem;">Fetch Server Clipboard</button>
-            </div>
-        </div>
-        <div id="tab-content-files" style="display:none;">
-            <div class="horizontal-tabs">
-                <div class="tab-group"><button id="subtab-manager" class="tab-btn" onclick="showFileSubTab('manager')">Manager</button></div>
-                <div class="tab-group"><button id="subtab-sharing" class="tab-btn" onclick="showFileSubTab('sharing')">Sharing</button></div>
-            </div>
-            <div id="filesub-manager">
-                <div class="file-browser">
-                    <div class="path" id="file-browser-path"></div>
-                    <ul id="file-browser-list" class="file-browser-list"></ul>
-                    <div id="file-browser-content"></div>
-                </div>
-            </div>
-            <div id="filesub-sharing" style="display:none;">
-                <div class="card">
-                    <h3>File Sharing</h3>
-                    <div class="upload-area">
-                        <input type="file" id="fileInput" style="display:none;" multiple onchange="uploadFiles()">
-                        <button onclick="document.getElementById('fileInput').click()" class="button">Select Files</button>
-                        <p style="color:#666;">or drag and drop files here</p>
-                    </div>
-                </div>
-                <div class="card">
-                    <h3>Shared Files</h3>
-                    <div id="fileList" class="file-list"></div>
-                </div>
-            </div>
-        </div>
-        <div id="tab-content-audio" style="display:none;">
-            <div class="card">
-                <h3 style="font-size: 1.2rem; margin-bottom: 1rem;">Audio Streaming</h3>
-                <audio id="audioStream" controls style="width:100%;"></audio>
-                <div id="audioFiles" style="margin-top: 1rem;"></div>
-            </div>
-        </div>
-        <div id="tab-content-others" style="display:none;">
-            <div class="card">
-                <h3 style="font-size: 1.2rem; margin-bottom: 1rem;">Other Features</h3>
-                <p>More functionalities coming soon.</p>
-            </div>
-        </div>
-    </main>
-    <script>
-        // Tab switching logic
         function showTab(tab) {
             ['home','clipboard','files','audio','others'].forEach(function(t) {
                 var content = document.getElementById('tab-content-' + t);

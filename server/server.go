@@ -102,6 +102,7 @@ func (s *Server) setupRoutes() {
 	s.router.GET("/audio", func(c *gin.Context) { s.uiHomeWithTab(c, "audio") })
 	s.router.GET("/others", func(c *gin.Context) { s.uiHomeWithTab(c, "others") })
 	s.router.GET("/admin", s.adminPanel)
+	s.router.GET("/ollama", s.ollamaUI)
 
 	// Serve static files
 	s.router.Static("/static", "./static")

@@ -107,6 +107,10 @@ func (a *API) CreateRoutes(router *gin.Engine) {
 				v1.GET("/docs", ServeAPIDocsUI)
 				v1.GET("/docs/json", ServeAPIDocsJSON)
 			}
+
+			// Ollama proxy endpoints
+			ollama := NewOllamaAPI("http://localhost:11434")
+			v1.Any("/ollama/*proxyPath", ollama.Proxy)
 		}
 
 		// Compatibility with existing endpoints
