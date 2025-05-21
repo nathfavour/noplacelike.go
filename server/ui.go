@@ -106,7 +106,10 @@ func (s *Server) ollamaUI(c *gin.Context) {
     function addMessage(role, text) {
       const msg = document.createElement('div');
       msg.className = 'msg ' + (role === 'user' ? 'user' : 'bot');
-      msg.innerHTML = `<div class="bubble">${text}</div>`;
+      var bubble = document.createElement('div');
+      bubble.className = 'bubble';
+      bubble.textContent = text;
+      msg.appendChild(bubble);
       chatHistory.appendChild(msg);
       chatHistory.scrollTop = chatHistory.scrollHeight;
     }
@@ -378,6 +381,109 @@ const homeTemplate = `<!DOCTYPE html>
         <div class="logo">noplacelike</div>
         <div class="nav">
             <button id="tab-home" onclick="showTab('home')"><span class="icon">🏠</span> Home</button>
+            <button id="tab-files" onclick="showTab('files')"><span class="icon">📁</span> Files</button>
+            <button id="tab-audio" onclick="showTab('audio')"><span class="icon">🎵</span> Audio</button>
+            <button id="tab-others" onclick="showTab('others')"><span class="icon">✨</span> Others</button>
+        </div>
+        <div class="spacer"></div>
+        <div class="footer">v0.1.0</div>
+    </div>
+    <div class="bottombar">
+        <button id="tab-home-mobile" class="nav-btn" onclick="showTab('home')"><span class="icon">🏠</span><span style="font-size:0.85em;">Home</span></button>
+        <button id="tab-files-mobile" class="nav-btn" onclick="showTab('files')"><span class="icon">📁</span><span style="font-size:0.85em;">Files</span></button>
+        <button id="tab-audio-mobile" class="nav-btn" onclick="showTab('audio')"><span class="icon">🎵</span><span style="font-size:0.85em;">Audio</span></button>
+        <button id="tab-others-mobile" class="nav-btn" onclick="showTab('others')"><span class="icon">✨</span><span style="font-size:0.85em;">Others</span></button>
+    </div>
+    <main class="main-with-sidebar">
+        <div id="tab-content-home">
+            <div class="card">
+                <h3 style="font-size: 1.2rem; margin-bottom: 1rem;">Live Clipboard Sync</h3>
+                <div style="display:flex;align-items:center;gap:1em;">
+                    <label style="display:flex;align-items:center;gap:0.5em;">
+                        <input type="checkbox" id="liveClipboardToggle" onchange="toggleLiveClipboard()">
+                        <span>Enable live clipboard sync</span>
+                    </label>
+                    <span id="liveClipboardStatus" style="color:#4444ff;font-weight:500;">OFF</span>
+                </div>
+                <div style="margin-top:1em;color:#888;font-size:0.95em;">
+                    When enabled, your clipboard will automatically sync with the server in real time.
+                </div>
+                <div id="clipboard-controls" style="margin-top:2em;">
+                    <div class="card" style="margin-bottom:1em;">
+                        <h4 style="margin-bottom:0.5em;">Clipboard Controls</h4>
+                        <div style="display:flex;gap:0.5em;align-items:center;flex-wrap:wrap;">
+                            <button class="button" onclick="sendClipboardToServer()">Send clipboard to others</button>
+                            <button class="button" onclick="receiveClipboardFromServer()">Receive clipboard from server</button>
+                            <span id="clipboardSyncStatus" style="color:#888;font-size:0.95em;"></span>
+                        </div>
+                        <div style="margin-top:1em;">
+                            <textarea id="manualClipboardInput" class="textarea" placeholder="Type here to send to other devices (does not affect your clipboard unless live sync is ON)"></textarea>
+                            <button class="button" style="margin-top:0.5em;" onclick="sendManualClipboard()">Send to others</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card" id="devices-section" style="margin-top:2rem;">
+                    <h3 style="font-size:1.1rem; margin-bottom:1rem;">Connected Devices</h3>
+                    <div id="devices-list" style="color:#888;">Loading devices...</div>
+                </div>
+            </div>
+        </div>
+        <div id="tab-content-clipboard" style="display:none;">
+            <!-- Clipboard Card -->
+            <div class="card">
+                <h3 style="font-size: 1.2rem; margin-bottom: 1rem;">Clipboard Sharing</h3>
+                <textarea id="clipboard" class="textarea" placeholder="Paste text here to share..."></textarea>
+                <button onclick="shareClipboard()" class="button">Share Clipboard</button>
+            </div>
+            <div class="card">
+                <h3 style="font-size: 1.2rem; margin-bottom: 1rem;">Server Clipboard</h3>
+                <div id="serverClipboard" class="textarea" style="overflow:auto; background:#f0f0f0;"></div>
+                <button onclick="fetchServerClipboard()" class="button" style="margin-top:0.5rem;">Fetch Server Clipboard</button>
+            </div>
+        </div>
+        <div id="tab-content-files" style="display:none;">
+            <div class="horizontal-tabs">
+                <div class="tab-group"><button id="subtab-manager" class="tab-btn" onclick="showFileSubTab('manager')">Manager</button></div>
+                <div class="tab-group"><button id="subtab-sharing" class="tab-btn" onclick="showFileSubTab('sharing')">Sharing</button></div>
+            </div>
+            <div id="filesub-manager">
+                <div class="file-browser">
+                    <div class="path" id="file-browser-path"></div>
+                    <ul id="file-browser-list" class="file-browser-list"></ul>
+                    <div id="file-browser-content"></div>
+                </div>
+            </div>
+            <div id="filesub-sharing" style="display:none;">
+                <div class="card">
+                    <h3>File Sharing</h3>
+                    <div class="upload-area">
+                        <input type="file" id="fileInput" style="display:none;" multiple onchange="uploadFiles()">
+                        <button onclick="document.getElementById('fileInput').click()" class="button">Select Files</button>
+                        <p style="color:#666;">or drag and drop files here</p>
+                    </div>
+                </div>
+                <div class="card">
+                    <h3>Shared Files</h3>
+                    <div id="fileList" class="file-list"></div>
+                </div>
+            </div>
+        </div>
+        <div id="tab-content-audio" style="display:none;">
+            <div class="card">
+                <h3 style="font-size: 1.2rem; margin-bottom: 1rem;">Audio Streaming</h3>
+                <audio id="audioStream" controls style="width:100%;"></audio>
+                <div id="audioFiles" style="margin-top: 1rem;"></div>
+            </div>
+        </div>
+        <div id="tab-content-others" style="display:none;">
+            <div class="card">
+                <h3 style="font-size: 1.2rem; margin-bottom: 1rem;">Other Features</h3>
+                <p>More functionalities coming soon.</p>
+            </div>
+        </div>
+    </main>
+    <script>
+        // Tab switching logic
         function showTab(tab) {
             ['home','clipboard','files','audio','others'].forEach(function(t) {
                 var content = document.getElementById('tab-content-' + t);
