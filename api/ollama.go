@@ -2,10 +2,11 @@
 package api
 
 import (
-	"io"
 	"net/http"
+	"net/url"
 	"strings"
 
+	ollama "github.com/JexSrs/go-ollama"
 	"github.com/gin-gonic/gin"
 )
 
@@ -25,50 +26,81 @@ func (o *OllamaAPI) Proxy(c *gin.Context) {
 		path = "/" + path
 	}
 
-	// Make sure we're hitting the right Ollama API endpoints
-	// Path comes in as "/tags", "/chat", etc. but Ollama expects "/api/tags", "/api/chat"
-	url := o.BaseURL + "/api" + path
-
-	method := c.Request.Method
-	client := &http.Client{}
-
-	var body io.Reader
-	if c.Request.Body != nil {
-		body = c.Request.Body
-	}
-
-	req, err := http.NewRequest(method, url, body)
+	parsedURL, err := url.Parse(o.BaseURL)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid Ollama base URL"})
 		return
 	}
+	LLM := ollama.New(*parsedURL)
 
-	// Copy headers - ensure Content-Type is preserved
-	for k, v := range c.Request.Header {
-		for _, vv := range v {
-			req.Header.Add(k, vv)
+	switch path {
+	case "/chat":
+		var req map[string]interface{}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON"})
+			return
 		}
-	}
-
-	// Ensure Content-Type is set for JSON requests if not already present
-	if req.Header.Get("Content-Type") == "" && (method == "POST" || method == "PUT") {
-		req.Header.Set("Content-Type", "application/json")
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		model, _ := req["model"].(string)
+		messages, _ := req["messages"].([]interface{})
+		var lastMsg map[string]interface{}
+		if len(messages) > 0 {
+			if msg, ok := messages[len(messages)-1].(map[string]interface{}); ok {
+				lastMsg = msg
+			}
+		}
+		if lastMsg == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "no message provided"})
+			return
+		}
+		var roleStr, contentStr string
+		if v, ok := lastMsg["role"].(string); ok {
+			roleStr = v
+		}
+		if v, ok := lastMsg["content"].(string); ok {
+			contentStr = v
+		}
+		msg := ollama.Message{
+			Role:    &roleStr,
+			Content: &contentStr,
+		}
+		res, err := LLM.Chat(
+			nil,
+			LLM.Chat.WithModel(model),
+			LLM.Chat.WithMessage(msg),
+		)
+		if err != nil {
+			c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, res)
 		return
-	}
-	defer resp.Body.Close()
-
-	// Copy response headers back to client
-	for k, v := range resp.Header {
-		for _, vv := range v {
-			c.Writer.Header().Add(k, vv)
+	case "/generate":
+		var req map[string]interface{}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON"})
+			return
 		}
+		model, _ := req["model"].(string)
+		prompt, _ := req["prompt"].(string)
+		res, err := LLM.Generate(
+			LLM.Generate.WithModel(model),
+			LLM.Generate.WithPrompt(prompt),
+		)
+		if err != nil {
+			c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, res)
+		return
+	case "/tags":
+		res, err := LLM.Models.List()
+		if err != nil {
+			c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, res)
+		return
+	default:
+		c.JSON(http.StatusNotFound, gin.H{"error": "unsupported endpoint"})
 	}
-
-	c.Writer.WriteHeader(resp.StatusCode)
-	io.Copy(c.Writer, resp.Body)
 }
