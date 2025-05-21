@@ -85,7 +85,7 @@ func (s *Server) ollamaUI(c *gin.Context) {
     let history = [];
 
     async function fetchModels() {
-      const res = await fetch('/api/v1/ollama/api/tags');
+      const res = await fetch('/api/v1/ollama/tags');
       const data = await res.json();
       modelSelect.innerHTML = '';
       (data.models || []).forEach(m => {
@@ -122,7 +122,7 @@ func (s *Server) ollamaUI(c *gin.Context) {
       userInput.value = '';
       chatForm.querySelector('button').disabled = true;
       // Send to Ollama API
-      const res = await fetch('/api/v1/ollama/api/chat', {
+      const res = await fetch('/api/v1/ollama/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: currentModel, messages: [{ role: 'user', content: text }] })
