@@ -1,132 +1,104 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
-	"os/signal"
-	"syscall"
 
-	"github.com/nathfavour/noplacelike.go/config"
-	"github.com/nathfavour/noplacelike.go/server"
+	"github.com/nathfavour/noplacelike.go/internal/core"
 	"github.com/spf13/cobra"
 )
 
-// NewRootCmd creates the root command for the noplacelike CLI application
-func NewRootCmd(cfg *config.Config) *cobra.Command {
-	// CLI flag variables for all config fields
-	var host string
-	var port int
-	var uploadFolder string
-	var downloadFolder string
-	var audioFolders []string
-	var allowedPaths []string
-	var showHidden bool
-	var enableShell bool
-	var enableAudioStreaming bool
-	var enableScreenStreaming bool
-	var allowedCommands []string
-	var maxFileContentSize int
-	var clipboardHistorySize int
+var (
+	configFile string
+	host       string
+	port       int
+	logLevel   string
+	enableAuth bool
+	enableTLS  bool
+)
 
-	rootCmd := &cobra.Command{
-		Use:   "noplacelike",
-		Short: "NoPlaceLike is a network resource sharing application",
-		Long: `NoPlaceLike is your virtual distributed operating system for effortlessly
-streaming clipboard data, files, music, and more across devices—wirelessly and seamlessly!`,
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			// Ensure upload directory exists
-			uploadDir := cfg.UploadFolder
-			if _, err := os.Stat(uploadDir); os.IsNotExist(err) {
-				if err := os.MkdirAll(uploadDir, 0755); err != nil {
-					cmd.PrintErrf("Error creating upload directory: %v\n", err)
-					os.Exit(1)
-				}
-			}
-		},
-		Run: func(cmd *cobra.Command, args []string) {
-			// Update config with flag values if provided
-			if cmd.Flags().Changed("host") {
-				cfg.Host = host
-			}
-			if cmd.Flags().Changed("port") {
-				cfg.Port = port
-			}
-			if cmd.Flags().Changed("upload-folder") {
-				cfg.UploadFolder = uploadFolder
-			}
-			if cmd.Flags().Changed("download-folder") {
-				cfg.DownloadFolder = downloadFolder
-			}
-			if cmd.Flags().Changed("audio-folders") {
-				cfg.AudioFolders = audioFolders
-			}
-			if cmd.Flags().Changed("allowed-paths") {
-				cfg.AllowedPaths = allowedPaths
-			}
-			if cmd.Flags().Changed("show-hidden") {
-				cfg.ShowHidden = showHidden
-			}
-			if cmd.Flags().Changed("enable-shell") {
-				cfg.EnableShell = enableShell
-			}
-			if cmd.Flags().Changed("enable-audio-streaming") {
-				cfg.EnableAudioStreaming = enableAudioStreaming
-			}
-			if cmd.Flags().Changed("enable-screen-streaming") {
-				cfg.EnableScreenStreaming = enableScreenStreaming
-			}
-			if cmd.Flags().Changed("allowed-commands") {
-				cfg.AllowedCommands = allowedCommands
-			}
-			if cmd.Flags().Changed("max-file-content-size") {
-				cfg.MaxFileContentSize = maxFileContentSize
-			}
-			if cmd.Flags().Changed("clipboard-history-size") {
-				cfg.ClipboardHistorySize = clipboardHistorySize
-			}
+// rootCmd represents the base command when called without any subcommands
+var rootCmd = &cobra.Command{
+	Use:   "noplacelike",
+	Short: "Professional Distributed Network Resource Sharing Platform",
+	Long: `NoPlaceLike is a professional distributed operating system designed for 
+seamless resource sharing across networks. Built from the ground up in Go with 
+a robust plugin architecture, it provides enterprise-grade performance, security, 
+and extensibility for modern distributed computing environments.`,
+	RunE: runPlatform,
+}
 
-			// Save updated configuration
-			if err := config.Save(cfg); err != nil {
-				fmt.Fprintf(os.Stderr, "Failed to save configuration: %v\n", err)
-			}
+// Execute adds all child commands to the root command and sets flags appropriately.
+func Execute(ctx context.Context) error {
+	return rootCmd.ExecuteContext(ctx)
+}
 
-			// Start the server
-			srv := server.NewServer(cfg)
-			go func() {
-				srv.Start()
-			}()
+func init() {
+	cobra.OnInitialize(initConfig)
 
-			// Display access information
-			server.DisplayAccessInfo(cfg.Host, cfg.Port)
+	// Global flags
+	rootCmd.PersistentFlags().StringVar(&configFile, "config", "", "config file (default is $HOME/.noplacelike.yaml)")
+	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "info", "logging level (debug, info, warn, error)")
 
-			// Wait for interrupt signal to gracefully shutdown the server
-			quit := make(chan os.Signal, 1)
-			signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-			<-quit
+	// Server flags
+	rootCmd.Flags().StringVar(&host, "host", "0.0.0.0", "host address to bind to")
+	rootCmd.Flags().IntVarP(&port, "port", "p", 8080, "port to listen on")
+	rootCmd.Flags().BoolVar(&enableAuth, "enable-auth", false, "enable authentication")
+	rootCmd.Flags().BoolVar(&enableTLS, "enable-tls", false, "enable TLS/HTTPS")
+}
 
-			fmt.Println("\nShutting down server...")
-			srv.Shutdown()
-		},
+func initConfig() {
+	// Set log level from environment or flag
+	if logLevel != "" {
+		os.Setenv("LOG_LEVEL", logLevel)
+	}
+}
+
+func runPlatform(cmd *cobra.Command, args []string) error {
+	ctx := cmd.Context()
+
+	// Create configuration
+	config := core.DefaultConfig()
+
+	// Override with command line flags
+	if host != "" {
+		config.Network.Host = host
+	}
+	if port > 0 {
+		config.Network.Port = port
+	}
+	config.Security.EnableAuth = enableAuth
+	config.Network.EnableTLS = enableTLS
+
+	// Load config file if specified
+	if configFile != "" {
+		if err := loadConfigFile(config, configFile); err != nil {
+			return fmt.Errorf("failed to load config file: %w", err)
+		}
 	}
 
-	// Define flags for all config fields
-	rootCmd.Flags().StringVar(&host, "host", cfg.Host, "Host address to bind to")
-	rootCmd.Flags().IntVarP(&port, "port", "p", cfg.Port, "Port to listen on")
-	rootCmd.Flags().StringVarP(&uploadFolder, "upload-folder", "u", cfg.UploadFolder, "Custom folder for uploads")
-	rootCmd.Flags().StringVar(&downloadFolder, "download-folder", cfg.DownloadFolder, "Custom folder for downloads")
-	rootCmd.Flags().StringSliceVar(&audioFolders, "audio-folders", cfg.AudioFolders, "Comma-separated list of audio folders")
-	rootCmd.Flags().StringSliceVar(&allowedPaths, "allowed-paths", cfg.AllowedPaths, "Comma-separated list of allowed paths for browsing")
-	rootCmd.Flags().BoolVar(&showHidden, "show-hidden", cfg.ShowHidden, "Show hidden files in directory listings")
-	rootCmd.Flags().BoolVar(&enableShell, "enable-shell", cfg.EnableShell, "Enable shell command execution API")
-	rootCmd.Flags().BoolVar(&enableAudioStreaming, "enable-audio-streaming", cfg.EnableAudioStreaming, "Enable audio streaming API")
-	rootCmd.Flags().BoolVar(&enableScreenStreaming, "enable-screen-streaming", cfg.EnableScreenStreaming, "Enable screen streaming API")
-	rootCmd.Flags().StringSliceVar(&allowedCommands, "allowed-commands", cfg.AllowedCommands, "Comma-separated list of allowed shell commands")
-	rootCmd.Flags().IntVar(&maxFileContentSize, "max-file-content-size", cfg.MaxFileContentSize, "Maximum file content size for reading (bytes)")
-	rootCmd.Flags().IntVar(&clipboardHistorySize, "clipboard-history-size", cfg.ClipboardHistorySize, "Clipboard history size")
+	// Create and start platform
+	platform := core.NewPlatform(config)
 
-	// Add sub-commands
-	rootCmd.AddCommand(newVersionCmd())
-	rootCmd.AddCommand(newConfigCmd(cfg))
+	// Start platform
+	if err := platform.Start(ctx); err != nil {
+		return fmt.Errorf("failed to start platform: %w", err)
+	}
 
-	return rootCmd
+	// Wait for shutdown signal
+	platform.Wait()
+
+	// Graceful shutdown
+	if err := platform.Stop(ctx); err != nil {
+		return fmt.Errorf("failed to stop platform: %w", err)
+	}
+
+	return nil
+}
+
+func loadConfigFile(config *core.Config, filename string) error {
+	// TODO: Implement config file loading with viper
+	// For now, just return nil
+	return nil
 }

@@ -47,7 +47,7 @@ func New() Logger {
 	config := zap.NewProductionConfig()
 	config.OutputPaths = []string{"stdout"}
 	config.ErrorOutputPaths = []string{"stderr"}
-	
+
 	// Set log level from environment
 	if level := os.Getenv("LOG_LEVEL"); level != "" {
 		if parsedLevel, err := zapcore.ParseLevel(level); err == nil {
@@ -83,7 +83,7 @@ func (l *zapLogger) WithFields(fields map[string]interface{}) Logger {
 	for k, v := range fields {
 		zapFields = append(zapFields, k, v)
 	}
-	
+
 	return &zapLogger{
 		SugaredLogger: l.SugaredLogger.With(zapFields...),
 	}

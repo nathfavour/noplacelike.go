@@ -6,21 +6,21 @@ import (
 
 // Config represents the platform configuration
 type Config struct {
-	Name        string          `json:"name" yaml:"name"`
-	Version     string          `json:"version" yaml:"version"`
-	Environment string          `json:"environment" yaml:"environment"`
-	Network     NetworkConfig   `json:"network" yaml:"network"`
-	Security    SecurityConfig  `json:"security" yaml:"security"`
-	Plugins     PluginsConfig   `json:"plugins" yaml:"plugins"`
-	Storage     StorageConfig   `json:"storage" yaml:"storage"`
+	Name        string           `json:"name" yaml:"name"`
+	Version     string           `json:"version" yaml:"version"`
+	Environment string           `json:"environment" yaml:"environment"`
+	Network     NetworkConfig    `json:"network" yaml:"network"`
+	Security    SecurityConfig   `json:"security" yaml:"security"`
+	Plugins     PluginsConfig    `json:"plugins" yaml:"plugins"`
+	Storage     StorageConfig    `json:"storage" yaml:"storage"`
 	Monitoring  MonitoringConfig `json:"monitoring" yaml:"monitoring"`
 }
 
 // NetworkConfig holds network-related configuration
 type NetworkConfig struct {
-	Host               string        `json:"host" yaml:"host"`
-	Port               int           `json:"port" yaml:"port"`
-	EnableDiscovery    bool          `json:"enableDiscovery" yaml:"enableDiscovery"`
+	Host              string        `json:"host" yaml:"host"`
+	Port              int           `json:"port" yaml:"port"`
+	EnableDiscovery   bool          `json:"enableDiscovery" yaml:"enableDiscovery"`
 	MaxPeers          int           `json:"maxPeers" yaml:"maxPeers"`
 	EnableTLS         bool          `json:"enableTLS" yaml:"enableTLS"`
 	TLSCertFile       string        `json:"tlsCertFile" yaml:"tlsCertFile"`
@@ -63,15 +63,15 @@ type StorageConfig struct {
 
 // MonitoringConfig holds monitoring-related configuration
 type MonitoringConfig struct {
-	EnableMetrics    bool          `json:"enableMetrics" yaml:"enableMetrics"`
-	MetricsPort      int           `json:"metricsPort" yaml:"metricsPort"`
-	MetricsPath      string        `json:"metricsPath" yaml:"metricsPath"`
-	EnableProfiling  bool          `json:"enableProfiling" yaml:"enableProfiling"`
-	HealthCheckPath  string        `json:"healthCheckPath" yaml:"healthCheckPath"`
-	LogLevel         string        `json:"logLevel" yaml:"logLevel"`
-	EnableTracing    bool          `json:"enableTracing" yaml:"enableTracing"`
-	SampleRate       float64       `json:"sampleRate" yaml:"sampleRate"`
-	FlushInterval    time.Duration `json:"flushInterval" yaml:"flushInterval"`
+	EnableMetrics   bool          `json:"enableMetrics" yaml:"enableMetrics"`
+	MetricsPort     int           `json:"metricsPort" yaml:"metricsPort"`
+	MetricsPath     string        `json:"metricsPath" yaml:"metricsPath"`
+	EnableProfiling bool          `json:"enableProfiling" yaml:"enableProfiling"`
+	HealthCheckPath string        `json:"healthCheckPath" yaml:"healthCheckPath"`
+	LogLevel        string        `json:"logLevel" yaml:"logLevel"`
+	EnableTracing   bool          `json:"enableTracing" yaml:"enableTracing"`
+	SampleRate      float64       `json:"sampleRate" yaml:"sampleRate"`
+	FlushInterval   time.Duration `json:"flushInterval" yaml:"flushInterval"`
 }
 
 // DefaultConfig returns a default configuration
@@ -81,9 +81,9 @@ func DefaultConfig() *Config {
 		Version:     "2.0.0",
 		Environment: "development",
 		Network: NetworkConfig{
-			Host:               "0.0.0.0",
-			Port:               8080,
-			EnableDiscovery:    true,
+			Host:              "0.0.0.0",
+			Port:              8080,
+			EnableDiscovery:   true,
 			MaxPeers:          50,
 			EnableTLS:         false,
 			ReadTimeout:       30 * time.Second,

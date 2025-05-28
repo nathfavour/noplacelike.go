@@ -4,7 +4,7 @@ import "errors"
 
 // Common errors
 var (
-	ErrAlreadyRunning    = errors.New("platform is already running")
+	ErrAlreadyRunning   = errors.New("platform is already running")
 	ErrNotRunning       = errors.New("platform is not running")
 	ErrInvalidConfig    = errors.New("invalid configuration")
 	ErrPluginNotFound   = errors.New("plugin not found")

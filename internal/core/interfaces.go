@@ -3,9 +3,9 @@ package core
 
 import (
 	"context"
-	"io"
 	"net/http"
-	"time"
+
+	"github.com/nathfavour/noplacelike.go/internal/logger"
 )
 
 // Service represents a platform service that can be started and stopped
@@ -19,19 +19,19 @@ type Service interface {
 // Plugin represents a platform plugin
 type Plugin interface {
 	Service
-	
+
 	// Plugin metadata
 	ID() string
 	Version() string
 	Dependencies() []string
-	
+
 	// Plugin lifecycle
 	Initialize(platform PlatformAPI) error
 	Configure(config map[string]interface{}) error
-	
+
 	// HTTP routes
 	Routes() []Route
-	
+
 	// Event handling
 	HandleEvent(event Event) error
 }
@@ -44,6 +44,7 @@ type PlatformAPI interface {
 	GetNetworkManager() NetworkManager
 	GetSecurityManager() SecurityManager
 	GetMetrics() MetricsCollector
+	GetHealthChecker() HealthChecker
 }
 
 // Logger interface for structured logging - use logger.Logger instead
@@ -53,16 +54,51 @@ type Logger = logger.Logger
 // EventBus handles event publishing and subscription
 type EventBus interface {
 	Service
-	
+
 	Publish(event Event) error
 	Subscribe(eventType string, handler EventHandler) error
 	Unsubscribe(eventType string, handler EventHandler) error
 }
 
+// IsHealthy implements EventBus.
+func (e *EventBus) IsHealthy() bool {
+	panic("unimplemented")
+}
+
+// Name implements EventBus.
+func (e *EventBus) Name() string {
+	panic("unimplemented")
+}
+
+// Publish implements EventBus.
+func (e *EventBus) Publish(event Event) error {
+	panic("unimplemented")
+}
+
+// Start implements EventBus.
+func (e *EventBus) Start(ctx context.Context) error {
+	panic("unimplemented")
+}
+
+// Stop implements EventBus.
+func (e *EventBus) Stop(ctx context.Context) error {
+	panic("unimplemented")
+}
+
+// Subscribe implements EventBus.
+func (e *EventBus) Subscribe(eventType string, handler EventHandler) error {
+	panic("unimplemented")
+}
+
+// Unsubscribe implements EventBus.
+func (e *EventBus) Unsubscribe(eventType string, handler EventHandler) error {
+	panic("unimplemented")
+}
+
 // ResourceManager manages platform resources
 type ResourceManager interface {
 	Service
-	
+
 	RegisterResource(resource Resource) error
 	UnregisterResource(id string) error
 	GetResource(id string) (Resource, error)
@@ -73,7 +109,7 @@ type ResourceManager interface {
 // NetworkManager handles network operations and peer management
 type NetworkManager interface {
 	Service
-	
+
 	DiscoverPeers() ([]Peer, error)
 	ConnectToPeer(address string) (Peer, error)
 	ListPeers() []Peer
@@ -84,7 +120,7 @@ type NetworkManager interface {
 // SecurityManager handles authentication and authorization
 type SecurityManager interface {
 	Service
-	
+
 	Authenticate(token string) (*User, error)
 	Authorize(user *User, resource string, action string) bool
 	GenerateToken(user *User) (string, error)
@@ -94,7 +130,7 @@ type SecurityManager interface {
 // MetricsCollector collects and exports metrics
 type MetricsCollector interface {
 	Service
-	
+
 	Counter(name string) Counter
 	Gauge(name string) Gauge
 	Histogram(name string) Histogram
@@ -104,7 +140,7 @@ type MetricsCollector interface {
 // HealthChecker monitors component health
 type HealthChecker interface {
 	Service
-	
+
 	RegisterCheck(name string, check HealthCheck) error
 	GetStatus() HealthStatus
 	IsHealthy() bool
@@ -113,10 +149,21 @@ type HealthChecker interface {
 // HTTPService provides HTTP server functionality
 type HTTPService interface {
 	Service
-	
+
 	RegisterRoute(route Route) error
 	RegisterMiddleware(middleware func(http.Handler) http.Handler)
 	GetRouter() http.Handler
+}
+
+// PluginManager manages platform plugins
+type PluginManager interface {
+	Service
+
+	LoadPlugin(name string) error
+	UnloadPlugin(name string) error
+	GetPlugin(name string) (Plugin, error)
+	ListPlugins() []Plugin
+	IsPluginLoaded(name string) bool
 }
 
 // Supporting types
@@ -172,13 +219,13 @@ type ResourceStream interface {
 
 // Peer represents a network peer
 type Peer struct {
-	ID        string                 `json:"id"`
-	Address   string                 `json:"address"`
-	Name      string                 `json:"name"`
-	Status    string                 `json:"status"`
-	Metadata  map[string]interface{} `json:"metadata"`
-	ConnectedAt int64                `json:"connectedAt"`
-	LastSeen    int64                `json:"lastSeen"`
+	ID          string                 `json:"id"`
+	Address     string                 `json:"address"`
+	Name        string                 `json:"name"`
+	Status      string                 `json:"status"`
+	Metadata    map[string]interface{} `json:"metadata"`
+	ConnectedAt int64                  `json:"connectedAt"`
+	LastSeen    int64                  `json:"lastSeen"`
 }
 
 // User represents a platform user
@@ -227,7 +274,7 @@ type TimerInstance interface {
 type HealthCheck func() error
 
 type HealthStatus struct {
-	Status string                    `json:"status"`
+	Status string                     `json:"status"`
 	Checks map[string]ComponentHealth `json:"checks"`
 }
 

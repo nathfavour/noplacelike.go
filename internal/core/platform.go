@@ -8,10 +8,28 @@ import (
 	"github.com/nathfavour/noplacelike.go/internal/logger"
 )
 
-var (
-	buildVersion = "unknown"
-	buildTime    = "unknown"
-	gitCommit    = "unknown"
+// var (
+// 	buildVersion = "unknown"
+// 	// bui
+
+// GetEventBus returns the event bus
+func (p *Platform) GetEventBus() EventBus {
+	return p.eventBus
+}
+
+// GetMetrics returns the metrics collector
+func (p *Platform) GetMetrics() MetricsCollector {
+	return p.metrics
+}
+
+// GetHealthChecker returns the health checker
+func (p *Platform) GetHealthChecker() HealthChecker {
+	return p.healthChecker
+}
+
+// me    = "unknown"
+// 	gitCommit    = "unknown"
+
 )
 
 // SetBuildInfo sets the build information
@@ -28,17 +46,17 @@ func GetBuildInfo() (version, buildT, commit string) {
 
 // Platform represents the core NoPlaceLike platform
 type Platform struct {
-	config       *Config
-	logger       *logger.Logger
-	pluginMgr    *PluginManager
-	networkMgr   *NetworkManager
-	resourceMgr  *ResourceManager
-	securityMgr  *SecurityManager
-	httpService  *HTTPService
-	eventBus     *EventBus
+	config        *Config
+	logger        *logger.Logger
+	pluginMgr     *PluginManager
+	networkMgr    *NetworkManager
+	resourceMgr   *ResourceManager
+	securityMgr   *SecurityManager
+	httpService   *HTTPService
+	eventBus      *EventBus
 	healthChecker *HealthChecker
-	metrics      *MetricsCollector
-	
+	metrics       *MetricsCollector
+
 	mu       sync.RWMutex
 	running  bool
 	stopChan chan struct{}
@@ -47,7 +65,7 @@ type Platform struct {
 // NewPlatform creates a new platform instance
 func NewPlatform(config *Config) *Platform {
 	log := logger.New()
-	
+
 	return &Platform{
 		config:   config,
 		logger:   log,
@@ -59,13 +77,13 @@ func NewPlatform(config *Config) *Platform {
 func (p *Platform) Start(ctx context.Context) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	
+
 	if p.running {
 		return ErrAlreadyRunning
 	}
 
-	p.logger.Info("Starting NoPlaceLike Platform", 
-		"version", buildVersion, 
+	p.logger.Info("Starting NoPlaceLike Platform",
+		"version", buildVersion,
 		"commit", gitCommit)
 
 	// Initialize core components
@@ -80,7 +98,7 @@ func (p *Platform) Start(ctx context.Context) error {
 
 	p.running = true
 	p.logger.Info("Platform started successfully")
-	
+
 	return nil
 }
 
@@ -88,13 +106,13 @@ func (p *Platform) Start(ctx context.Context) error {
 func (p *Platform) Stop(ctx context.Context) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	
+
 	if !p.running {
 		return nil
 	}
 
 	p.logger.Info("Stopping NoPlaceLike Platform")
-	
+
 	// Stop services in reverse order
 	if err := p.stopServices(ctx); err != nil {
 		p.logger.Error("Error stopping services", "error", err)
@@ -102,7 +120,7 @@ func (p *Platform) Stop(ctx context.Context) error {
 
 	close(p.stopChan)
 	p.running = false
-	
+
 	p.logger.Info("Platform stopped successfully")
 	return nil
 }
