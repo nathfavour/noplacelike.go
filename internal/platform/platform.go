@@ -227,14 +227,19 @@ func (p *Platform) Start(ctx context.Context) error {
 
 	// Publish platform started event
 	event := core.Event{
-		ID:        generateID(),
-		Type:      "platform.started",
-		Source:    "platform",
-		Data:      p.buildInfo,
-		Timestamp: time.Now(),
+		ID:     generateID(),
+		Type:   "platform.started",
+		Source: "platform",
+		Data: map[string]interface{}{
+			"version":   p.buildInfo.Version,
+			"commit":    p.buildInfo.Commit,
+			"buildTime": p.buildInfo.BuildTime,
+			"goVersion": p.buildInfo.GoVersion,
+		},
+		Timestamp: time.Now().Unix(),
 	}
 
-	if err := p.eventBus.Publish(ctx, "platform", event); err != nil {
+	if err := p.eventBus.Publish(event); err != nil {
 		p.logger.Warn("Failed to publish platform started event", core.Field{Key: "error", Value: err})
 	}
 
@@ -295,7 +300,7 @@ func (p *Platform) LoadPlugin(ctx context.Context, plugin core.Plugin) error {
 	}
 
 	// Initialize plugin
-	if err := plugin.Initialize(ctx, nil); err != nil {
+	if err := plugin.Initialize(p); err != nil {
 		return fmt.Errorf("failed to initialize plugin %s: %w", name, err)
 	}
 
@@ -317,13 +322,13 @@ func (p *Platform) LoadPlugin(ctx context.Context, plugin core.Plugin) error {
 	// Publish plugin loaded event
 	event := core.Event{
 		ID:        generateID(),
-		Type:      core.EventPluginLoaded,
+		Type:      "plugin.loaded",
 		Source:    "platform",
-		Data:      map[string]string{"name": name, "version": plugin.Version()},
-		Timestamp: time.Now(),
+		Data:      map[string]interface{}{"name": name, "version": plugin.Version()},
+		Timestamp: time.Now().Unix(),
 	}
 
-	if err := p.eventBus.Publish(ctx, "plugins", event); err != nil {
+	if err := p.eventBus.Publish(event); err != nil {
 		p.logger.Warn("Failed to publish plugin loaded event", core.Field{Key: "error", Value: err})
 	}
 
@@ -365,13 +370,13 @@ func (p *Platform) UnloadPlugin(ctx context.Context, name string) error {
 	// Publish plugin unloaded event
 	event := core.Event{
 		ID:        generateID(),
-		Type:      core.EventPluginUnloaded,
+		Type:      "plugin.unloaded",
 		Source:    "platform",
-		Data:      map[string]string{"name": name},
-		Timestamp: time.Now(),
+		Data:      map[string]interface{}{"name": name},
+		Timestamp: time.Now().Unix(),
 	}
 
-	if err := p.eventBus.Publish(ctx, "plugins", event); err != nil {
+	if err := p.eventBus.Publish(event); err != nil {
 		p.logger.Warn("Failed to publish plugin unloaded event", core.Field{Key: "error", Value: err})
 	}
 
@@ -460,7 +465,6 @@ func (p *Platform) Health() core.HealthStatus {
 }
 
 // Managers provide access to core platform managers
-// ...existing code...
 func (p *Platform) ServiceManager() core.ServiceManager   { return p.serviceManager }
 func (p *Platform) NetworkManager() core.NetworkManager   { return p.networkManager }
 func (p *Platform) ResourceManager() core.ResourceManager { return p.resourceManager }
@@ -469,7 +473,39 @@ func (p *Platform) ConfigManager() core.ConfigManager     { return p.configManag
 func (p *Platform) EventBus() core.EventBus               { return p.eventBus }
 func (p *Platform) Metrics() core.MetricsCollector        { return p.metrics }
 func (p *Platform) Logger() core.Logger                   { return p.logger }
-// ...existing code...
+
+// Implement core.PlatformAPI interface
+func (p *Platform) GetEventBus() core.EventBus {
+	return p.eventBus
+}
+
+func (p *Platform) GetLogger() core.Logger {
+	return p.logger
+}
+
+func (p *Platform) GetConfigManager() core.ConfigManager {
+	return p.configManager
+}
+
+func (p *Platform) GetMetrics() core.MetricsCollector {
+	return p.metrics
+}
+
+func (p *Platform) GetNetworkManager() core.NetworkManager {
+	return p.networkManager
+}
+
+func (p *Platform) GetResourceManager() core.ResourceManager {
+	return p.resourceManager
+}
+
+func (p *Platform) GetSecurityManager() core.SecurityManager {
+	return p.securityManager
+}
+
+func (p *Platform) GetHealthChecker() core.HealthChecker {
+	return nil // TODO: implement if you have a health checker in your platform
+}
 
 // loadPlugins loads plugins from configured directories
 func (p *Platform) loadPlugins(ctx context.Context) error {
