@@ -303,3 +303,30 @@ func (p *pluginManager) GetPlugin(name string) (Plugin, error) {
 	}
 	return plugin, nil
 }
+
+func (p *pluginManager) ListPlugins() []Plugin {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	plugins := make([]Plugin, 0, len(p.plugins))
+	for _, plugin := range p.plugins {
+		plugins = append(plugins, plugin)
+	}
+	return plugins
+}
+
+func (p *pluginManager) IsPluginLoaded(name string) bool {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	_, exists := p.plugins[name]
+	return exists
+}
+
+func (p *pluginManager) LoadPlugin(name string) error {
+	// TODO: Implement plugin loading logic
+	return nil
+}
+
+func (p *pluginManager) UnloadPlugin(name string) error {
+	// TODO: Implement plugin unloading logic
+	return nil
+}
