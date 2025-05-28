@@ -38,7 +38,7 @@ type Plugin interface {
 
 // PlatformAPI provides access to platform services for plugins
 type PlatformAPI interface {
-	GetLogger() Logger
+	GetLogger() logger.Logger
 	GetEventBus() EventBus
 	GetResourceManager() ResourceManager
 	GetNetworkManager() NetworkManager
@@ -46,15 +46,9 @@ type PlatformAPI interface {
 	GetMetrics() MetricsCollector
 }
 
-// Logger interface for structured logging
-type Logger interface {
-	Debug(msg string, fields ...interface{})
-	Info(msg string, fields ...interface{})
-	Warn(msg string, fields ...interface{})
-	Error(msg string, fields ...interface{})
-	Fatal(msg string, fields ...interface{})
-	WithFields(fields map[string]interface{}) Logger
-}
+// Logger interface for structured logging - use logger.Logger instead
+// Keeping this for backward compatibility
+type Logger = logger.Logger
 
 // EventBus handles event publishing and subscription
 type EventBus interface {
