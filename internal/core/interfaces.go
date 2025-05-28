@@ -60,40 +60,7 @@ type EventBus interface {
 	Unsubscribe(eventType string, handler EventHandler) error
 }
 
-// IsHealthy implements EventBus.
-func (e *EventBus) IsHealthy() bool {
-	panic("unimplemented")
-}
-
-// Name implements EventBus.
-func (e *EventBus) Name() string {
-	panic("unimplemented")
-}
-
-// Publish implements EventBus.
-func (e *EventBus) Publish(event Event) error {
-	panic("unimplemented")
-}
-
-// Start implements EventBus.
-func (e *EventBus) Start(ctx context.Context) error {
-	panic("unimplemented")
-}
-
-// Stop implements EventBus.
-func (e *EventBus) Stop(ctx context.Context) error {
-	panic("unimplemented")
-}
-
-// Subscribe implements EventBus.
-func (e *EventBus) Subscribe(eventType string, handler EventHandler) error {
-	panic("unimplemented")
-}
-
-// Unsubscribe implements EventBus.
-func (e *EventBus) Unsubscribe(eventType string, handler EventHandler) error {
-	panic("unimplemented")
-}
+// ...existing code...
 
 // ResourceManager manages platform resources
 type ResourceManager interface {

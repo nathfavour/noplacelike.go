@@ -293,3 +293,13 @@ func (p *pluginManager) IsHealthy() bool {
 func (p *pluginManager) Name() string {
 	return "PluginManager"
 }
+
+func (p *pluginManager) GetPlugin(name string) (Plugin, error) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	plugin, exists := p.plugins[name]
+	if !exists {
+		return nil, ErrPluginNotFound
+	}
+	return plugin, nil
+}

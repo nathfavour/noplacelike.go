@@ -8,28 +8,10 @@ import (
 	"github.com/nathfavour/noplacelike.go/internal/logger"
 )
 
-// var (
-// 	buildVersion = "unknown"
-// 	// bui
-
-// GetEventBus returns the event bus
-func (p *Platform) GetEventBus() EventBus {
-	return p.eventBus
-}
-
-// GetMetrics returns the metrics collector
-func (p *Platform) GetMetrics() MetricsCollector {
-	return p.metrics
-}
-
-// GetHealthChecker returns the health checker
-func (p *Platform) GetHealthChecker() HealthChecker {
-	return p.healthChecker
-}
-
-// me    = "unknown"
-// 	gitCommit    = "unknown"
-
+var (
+	buildVersion = "unknown"
+	buildTime    = "unknown"
+	gitCommit    = "unknown"
 )
 
 // SetBuildInfo sets the build information
@@ -47,15 +29,15 @@ func GetBuildInfo() (version, buildT, commit string) {
 // Platform represents the core NoPlaceLike platform
 type Platform struct {
 	config        *Config
-	logger        *logger.Logger
-	pluginMgr     *PluginManager
-	networkMgr    *NetworkManager
-	resourceMgr   *ResourceManager
-	securityMgr   *SecurityManager
-	httpService   *HTTPService
-	eventBus      *EventBus
-	healthChecker *HealthChecker
-	metrics       *MetricsCollector
+	logger        logger.Logger
+	pluginMgr     PluginManager
+	networkMgr    NetworkManager
+	resourceMgr   ResourceManager
+	securityMgr   SecurityManager
+	httpService   HTTPService
+	eventBus      EventBus
+	healthChecker HealthChecker
+	metrics       MetricsCollector
 
 	mu       sync.RWMutex
 	running  bool
@@ -66,7 +48,7 @@ type Platform struct {
 func NewPlatform(config *Config) *Platform {
 	log := logger.New()
 
-	return &Platform{
+	return & Platform {
 		config:   config,
 		logger:   log,
 		stopChan: make(chan struct{}),
@@ -138,7 +120,7 @@ func (p *Platform) IsRunning() bool {
 }
 
 // GetLogger returns the platform logger
-func (p *Platform) GetLogger() *logger.Logger {
+func (p *Platform) GetLogger() logger.Logger {
 	return p.logger
 }
 
@@ -148,23 +130,43 @@ func (p *Platform) GetConfig() *Config {
 }
 
 // GetPluginManager returns the plugin manager
-func (p *Platform) GetPluginManager() *PluginManager {
+func (p *Platform) GetPluginManager() PluginManager {
 	return p.pluginMgr
 }
 
 // GetNetworkManager returns the network manager
-func (p *Platform) GetNetworkManager() *NetworkManager {
+func (p *Platform) GetNetworkManager() NetworkManager {
 	return p.networkMgr
 }
 
 // GetResourceManager returns the resource manager
-func (p *Platform) GetResourceManager() *ResourceManager {
+func (p *Platform) GetResourceManager() ResourceManager {
 	return p.resourceMgr
 }
 
+// GetSecurityManager returns the security manager
+func (p *Platform) GetSecurityManager() SecurityManager {
+	return p.securityMgr
+}
+
 // GetEventBus returns the event bus
-func (p *Platform) GetEventBus() *EventBus {
+func (p *Platform) GetEventBus() EventBus {
 	return p.eventBus
+}
+
+// GetMetrics returns the metrics collector
+func (p *Platform) GetMetrics() MetricsCollector {
+	return p.metrics
+}
+
+// GetHTTPService returns the HTTP service
+func (p *Platform) GetHTTPService() HTTPService {
+	return p.httpService
+}
+
+// GetHealthChecker returns the health checker
+func (p *Platform) GetHealthChecker() HealthChecker {
+	return p.healthChecker
 }
 
 // initializeComponents initializes all platform components
