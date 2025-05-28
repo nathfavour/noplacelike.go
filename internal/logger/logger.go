@@ -17,33 +17,33 @@ type Logger interface {
 	WithFields(fields map[string]interface{}) Logger
 }
 
-type Logger struct {
+type zapLogger struct {
 	*zap.SugaredLogger
 }
 
-// Ensure Logger implements the core.Logger interface
-func (l *Logger) Debug(msg string, fields ...interface{}) {
+// Ensure zapLogger implements the Logger interface
+func (l *zapLogger) Debug(msg string, fields ...interface{}) {
 	l.SugaredLogger.Debugw(msg, fields...)
 }
 
-func (l *Logger) Info(msg string, fields ...interface{}) {
+func (l *zapLogger) Info(msg string, fields ...interface{}) {
 	l.SugaredLogger.Infow(msg, fields...)
 }
 
-func (l *Logger) Warn(msg string, fields ...interface{}) {
+func (l *zapLogger) Warn(msg string, fields ...interface{}) {
 	l.SugaredLogger.Warnw(msg, fields...)
 }
 
-func (l *Logger) Error(msg string, fields ...interface{}) {
+func (l *zapLogger) Error(msg string, fields ...interface{}) {
 	l.SugaredLogger.Errorw(msg, fields...)
 }
 
-func (l *Logger) Fatal(msg string, fields ...interface{}) {
+func (l *zapLogger) Fatal(msg string, fields ...interface{}) {
 	l.SugaredLogger.Fatalw(msg, fields...)
 }
 
 // New creates a new structured logger
-func New() *Logger {
+func New() Logger {
 	config := zap.NewProductionConfig()
 	config.OutputPaths = []string{"stdout"}
 	config.ErrorOutputPaths = []string{"stderr"}
@@ -60,31 +60,31 @@ func New() *Logger {
 		panic(err)
 	}
 
-	return &Logger{
+	return &zapLogger{
 		SugaredLogger: logger.Sugar(),
 	}
 }
 
 // NewDevelopment creates a development logger with pretty printing
-func NewDevelopment() *Logger {
+func NewDevelopment() Logger {
 	logger, err := zap.NewDevelopment()
 	if err != nil {
 		panic(err)
 	}
 
-	return &Logger{
+	return &zapLogger{
 		SugaredLogger: logger.Sugar(),
 	}
 }
 
 // WithFields adds structured fields to the logger
-func (l *Logger) WithFields(fields map[string]interface{}) core.Logger {
+func (l *zapLogger) WithFields(fields map[string]interface{}) Logger {
 	var zapFields []interface{}
 	for k, v := range fields {
 		zapFields = append(zapFields, k, v)
 	}
 	
-	return &Logger{
+	return &zapLogger{
 		SugaredLogger: l.SugaredLogger.With(zapFields...),
 	}
 }
