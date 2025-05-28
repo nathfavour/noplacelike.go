@@ -29,27 +29,27 @@ type HTTPService struct {
 
 // HTTPConfig contains HTTP service configuration
 type HTTPConfig struct {
-	Host            string        `json:"host"`
-	Port            int           `json:"port"`
-	EnableTLS       bool          `json:"enableTLS"`
-	TLSCertFile     string        `json:"tlsCertFile"`
-	TLSKeyFile      string        `json:"tlsKeyFile"`
-	ReadTimeout     time.Duration `json:"readTimeout"`
-	WriteTimeout    time.Duration `json:"writeTimeout"`
-	IdleTimeout     time.Duration `json:"idleTimeout"`
-	MaxRequestSize  int64         `json:"maxRequestSize"`
-	EnableCORS      bool          `json:"enableCORS"`
-	EnableMetrics   bool          `json:"enableMetrics"`
-	EnableDocs      bool          `json:"enableDocs"`
-	RateLimitRPS    int           `json:"rateLimitRPS"`
-	EnableGzip      bool          `json:"enableGzip"`
+	Host           string        `json:"host"`
+	Port           int           `json:"port"`
+	EnableTLS      bool          `json:"enableTLS"`
+	TLSCertFile    string        `json:"tlsCertFile"`
+	TLSKeyFile     string        `json:"tlsKeyFile"`
+	ReadTimeout    time.Duration `json:"readTimeout"`
+	WriteTimeout   time.Duration `json:"writeTimeout"`
+	IdleTimeout    time.Duration `json:"idleTimeout"`
+	MaxRequestSize int64         `json:"maxRequestSize"`
+	EnableCORS     bool          `json:"enableCORS"`
+	EnableMetrics  bool          `json:"enableMetrics"`
+	EnableDocs     bool          `json:"enableDocs"`
+	RateLimitRPS   int           `json:"rateLimitRPS"`
+	EnableGzip     bool          `json:"enableGzip"`
 }
 
 // NewHTTPService creates a new HTTP service
 func NewHTTPService(config HTTPConfig, platform *platform.Platform) *HTTPService {
 	// Set gin mode based on environment
 	gin.SetMode(gin.ReleaseMode)
-	
+
 	return &HTTPService{
 		name:     "http",
 		config:   config,
@@ -68,17 +68,17 @@ func (s *HTTPService) Name() string {
 func (s *HTTPService) Start(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if s.started {
 		return fmt.Errorf("HTTP service already started")
 	}
-	
+
 	// Setup middleware
 	s.setupMiddleware()
-	
+
 	// Setup routes
 	s.setupRoutes()
-	
+
 	// Create HTTP server
 	addr := fmt.Sprintf("%s:%d", s.config.Host, s.config.Port)
 	s.server = &http.Server{
@@ -88,26 +88,26 @@ func (s *HTTPService) Start(ctx context.Context) error {
 		WriteTimeout: s.config.WriteTimeout,
 		IdleTimeout:  s.config.IdleTimeout,
 	}
-	
+
 	// Start server in goroutine
 	go func() {
-		s.logger.Info("Starting HTTP server", 
+		s.logger.Info("Starting HTTP server",
 			core.Field{Key: "address", Value: addr},
 			core.Field{Key: "tls", Value: s.config.EnableTLS},
 		)
-		
+
 		var err error
 		if s.config.EnableTLS {
 			err = s.server.ListenAndServeTLS(s.config.TLSCertFile, s.config.TLSKeyFile)
 		} else {
 			err = s.server.ListenAndServe()
 		}
-		
+
 		if err != nil && err != http.ErrServerClosed {
 			s.logger.Error("HTTP server error", core.Field{Key: "error", Value: err})
 		}
 	}()
-	
+
 	s.started = true
 	s.logger.Info("HTTP service started successfully")
 	return nil
@@ -117,17 +117,17 @@ func (s *HTTPService) Start(ctx context.Context) error {
 func (s *HTTPService) Stop(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if !s.started {
 		return fmt.Errorf("HTTP service not started")
 	}
-	
+
 	s.logger.Info("Stopping HTTP service")
-	
+
 	if err := s.server.Shutdown(ctx); err != nil {
 		return fmt.Errorf("failed to shutdown HTTP server: %w", err)
 	}
-	
+
 	s.started = false
 	s.logger.Info("HTTP service stopped")
 	return nil
@@ -137,12 +137,12 @@ func (s *HTTPService) Stop(ctx context.Context) error {
 func (s *HTTPService) Health() core.HealthStatus {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
+
 	status := core.HealthStatusHealthy
 	if !s.started {
 		status = core.HealthStatusUnhealthy
 	}
-	
+
 	return core.HealthStatus{
 		Status:    status,
 		Timestamp: time.Now(),
@@ -181,28 +181,28 @@ func (s *HTTPService) Configuration() core.ConfigSchema {
 func (s *HTTPService) setupMiddleware() {
 	// Recovery middleware
 	s.router.Use(gin.Recovery())
-	
+
 	// Logging middleware
 	s.router.Use(s.loggingMiddleware())
-	
+
 	// CORS middleware
 	if s.config.EnableCORS {
 		s.router.Use(s.corsMiddleware())
 	}
-	
+
 	// Rate limiting middleware
 	if s.config.RateLimitRPS > 0 {
 		s.router.Use(s.rateLimitMiddleware())
 	}
-	
+
 	// Gzip compression middleware
 	if s.config.EnableGzip {
 		// Would implement gzip middleware
 	}
-	
+
 	// Security headers middleware
 	s.router.Use(s.securityHeadersMiddleware())
-	
+
 	// Request size limit middleware
 	s.router.Use(s.requestSizeLimitMiddleware())
 }
@@ -213,7 +213,7 @@ func (s *HTTPService) setupRoutes() {
 	s.router.GET("/", s.handleRoot)
 	s.router.GET("/health", s.handleHealth)
 	s.router.GET("/info", s.handleInfo)
-	
+
 	// API routes
 	api := s.router.Group("/api")
 	{
@@ -224,7 +224,7 @@ func (s *HTTPService) setupRoutes() {
 			platform.GET("/info", s.handlePlatformInfo)
 			platform.GET("/metrics", s.handleMetrics)
 		}
-		
+
 		// Plugin management
 		plugins := api.Group("/plugins")
 		{
@@ -234,7 +234,7 @@ func (s *HTTPService) setupRoutes() {
 			plugins.POST("/:name/stop", s.handleStopPlugin)
 			plugins.GET("/:name/health", s.handlePluginHealth)
 		}
-		
+
 		// Service management
 		services := api.Group("/services")
 		{
@@ -242,7 +242,7 @@ func (s *HTTPService) setupRoutes() {
 			services.GET("/:name", s.handleGetService)
 			services.GET("/:name/health", s.handleServiceHealth)
 		}
-		
+
 		// Network management
 		network := api.Group("/network")
 		{
@@ -250,7 +250,7 @@ func (s *HTTPService) setupRoutes() {
 			network.GET("/peers/:id", s.handleGetPeer)
 			network.POST("/peers/discover", s.handleDiscoverPeers)
 		}
-		
+
 		// Resource management
 		resources := api.Group("/resources")
 		{
@@ -260,7 +260,7 @@ func (s *HTTPService) setupRoutes() {
 			resources.DELETE("/:id", s.handleDeleteResource)
 			resources.GET("/:id/stream", s.handleStreamResource)
 		}
-		
+
 		// Events and subscriptions
 		events := api.Group("/events")
 		{
@@ -268,7 +268,7 @@ func (s *HTTPService) setupRoutes() {
 			events.POST("/publish", s.handlePublishEvent)
 		}
 	}
-	
+
 	// Register plugin routes
 	s.registerPluginRoutes()
 }
@@ -276,28 +276,28 @@ func (s *HTTPService) setupRoutes() {
 // registerPluginRoutes registers routes provided by plugins
 func (s *HTTPService) registerPluginRoutes() {
 	plugins := s.platform.ListPlugins()
-	
+
 	for name, plugin := range plugins {
 		routes := plugin.Routes()
-		
+
 		for _, route := range routes {
 			// Create a group for the plugin
 			group := s.router.Group(fmt.Sprintf("/plugins/%s", name))
-			
+
 			// Add authentication middleware if required
 			var handlers []gin.HandlerFunc
 			if route.Auth.Required {
 				handlers = append(handlers, s.authMiddleware(route.Auth.Permissions))
 			}
-			
+
 			// Add custom middleware
 			for _, middleware := range route.Middleware {
 				handlers = append(handlers, gin.WrapH(middleware(http.HandlerFunc(route.Handler))))
 			}
-			
+
 			// Add the main handler
 			handlers = append(handlers, gin.WrapH(http.HandlerFunc(route.Handler)))
-			
+
 			// Register the route
 			group.Handle(route.Method, route.Path, handlers...)
 		}
@@ -316,14 +316,14 @@ func (s *HTTPService) handleRoot(c *gin.Context) {
 
 func (s *HTTPService) handleHealth(c *gin.Context) {
 	health := s.platform.Health()
-	
+
 	statusCode := http.StatusOK
 	if health.Status == core.HealthStatusUnhealthy {
 		statusCode = http.StatusServiceUnavailable
 	} else if health.Status == core.HealthStatusDegraded {
 		statusCode = http.StatusPartialContent
 	}
-	
+
 	c.JSON(statusCode, health)
 }
 
@@ -334,7 +334,7 @@ func (s *HTTPService) handleInfo(c *gin.Context) {
 		"plugins":  len(s.platform.ListPlugins()),
 		"peers":    len(s.platform.NetworkManager().GetPeers()),
 	}
-	
+
 	c.JSON(http.StatusOK, info)
 }
 
@@ -348,13 +348,13 @@ func (s *HTTPService) handlePlatformInfo(c *gin.Context) {
 
 func (s *HTTPService) handleMetrics(c *gin.Context) {
 	format := c.DefaultQuery("format", "json")
-	
+
 	metrics, err := s.platform.Metrics().Export(format)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	
+
 	if format == "json" {
 		c.Data(http.StatusOK, "application/json", metrics)
 	} else {
@@ -364,7 +364,7 @@ func (s *HTTPService) handleMetrics(c *gin.Context) {
 
 func (s *HTTPService) handleListPlugins(c *gin.Context) {
 	plugins := s.platform.ListPlugins()
-	
+
 	result := make([]map[string]interface{}, 0, len(plugins))
 	for name, plugin := range plugins {
 		result = append(result, map[string]interface{}{
@@ -373,19 +373,19 @@ func (s *HTTPService) handleListPlugins(c *gin.Context) {
 			"health":  plugin.Health(),
 		})
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{"plugins": result})
 }
 
 func (s *HTTPService) handleGetPlugin(c *gin.Context) {
 	name := c.Param("name")
-	
+
 	plugin, err := s.platform.GetPlugin(name)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, map[string]interface{}{
 		"name":         plugin.Name(),
 		"version":      plugin.Version(),
@@ -397,47 +397,47 @@ func (s *HTTPService) handleGetPlugin(c *gin.Context) {
 
 func (s *HTTPService) handleStartPlugin(c *gin.Context) {
 	name := c.Param("name")
-	
+
 	plugin, err := s.platform.GetPlugin(name)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
 	}
-	
+
 	if err := plugin.Start(c.Request.Context()); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{"status": "started"})
 }
 
 func (s *HTTPService) handleStopPlugin(c *gin.Context) {
 	name := c.Param("name")
-	
+
 	plugin, err := s.platform.GetPlugin(name)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
 	}
-	
+
 	if err := plugin.Stop(c.Request.Context()); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{"status": "stopped"})
 }
 
 func (s *HTTPService) handlePluginHealth(c *gin.Context) {
 	name := c.Param("name")
-	
+
 	plugin, err := s.platform.GetPlugin(name)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, plugin.Health())
 }
 
@@ -448,13 +448,13 @@ func (s *HTTPService) handleListServices(c *gin.Context) {
 
 func (s *HTTPService) handleGetService(c *gin.Context) {
 	name := c.Param("name")
-	
+
 	service, err := s.platform.ServiceManager().GetService(name)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, map[string]interface{}{
 		"name":   service.Name(),
 		"health": service.Health(),
@@ -464,13 +464,13 @@ func (s *HTTPService) handleGetService(c *gin.Context) {
 
 func (s *HTTPService) handleServiceHealth(c *gin.Context) {
 	name := c.Param("name")
-	
+
 	service, err := s.platform.ServiceManager().GetService(name)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, service.Health())
 }
 
@@ -481,7 +481,7 @@ func (s *HTTPService) handleListPeers(c *gin.Context) {
 
 func (s *HTTPService) handleGetPeer(c *gin.Context) {
 	id := c.Param("id")
-	
+
 	peers := s.platform.NetworkManager().GetPeers()
 	for _, peer := range peers {
 		if peer.ID == id {
@@ -489,7 +489,7 @@ func (s *HTTPService) handleGetPeer(c *gin.Context) {
 			return
 		}
 	}
-	
+
 	c.JSON(http.StatusNotFound, gin.H{"error": "peer not found"})
 }
 
@@ -499,7 +499,7 @@ func (s *HTTPService) handleDiscoverPeers(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{"peers": peers})
 }
 
@@ -508,25 +508,25 @@ func (s *HTTPService) handleListResources(c *gin.Context) {
 		Type:  c.Query("type"),
 		Owner: c.Query("owner"),
 	}
-	
+
 	resources, err := s.platform.ResourceManager().ListResources(c.Request.Context(), filter)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{"resources": resources})
 }
 
 func (s *HTTPService) handleGetResource(c *gin.Context) {
 	id := c.Param("id")
-	
+
 	resource, err := s.platform.ResourceManager().GetResource(c.Request.Context(), id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, resource)
 }
 
@@ -536,18 +536,18 @@ func (s *HTTPService) handleCreateResource(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	
+
 	if err := s.platform.ResourceManager().RegisterResource(resource); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	
+
 	c.JSON(http.StatusCreated, resource)
 }
 
 func (s *HTTPService) handleDeleteResource(c *gin.Context) {
 	id := c.Param("id")
-	
+
 	// Implementation would remove the resource
 	// For now, just return success
 	c.JSON(http.StatusOK, gin.H{"status": "deleted", "id": id})
@@ -555,18 +555,18 @@ func (s *HTTPService) handleDeleteResource(c *gin.Context) {
 
 func (s *HTTPService) handleStreamResource(c *gin.Context) {
 	id := c.Param("id")
-	
+
 	stream, err := s.platform.ResourceManager().StreamResource(c.Request.Context(), id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
 	}
 	defer stream.Close()
-	
+
 	// Stream the resource content
 	c.Header("Content-Type", "application/octet-stream")
 	c.Header("Transfer-Encoding", "chunked")
-	
+
 	// Copy stream to response
 	c.Stream(func(w io.Writer) bool {
 		buffer := make([]byte, 4096)
@@ -574,7 +574,7 @@ func (s *HTTPService) handleStreamResource(c *gin.Context) {
 		if err != nil {
 			return false
 		}
-		
+
 		w.Write(buffer[:n])
 		return true
 	})
@@ -585,7 +585,7 @@ func (s *HTTPService) handleEventStream(c *gin.Context) {
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
 	c.Header("Connection", "keep-alive")
-	
+
 	// Subscribe to events
 	err := s.platform.EventBus().Subscribe(c.Request.Context(), "*", func(ctx context.Context, event core.Event) error {
 		data, _ := json.Marshal(event)
@@ -593,12 +593,12 @@ func (s *HTTPService) handleEventStream(c *gin.Context) {
 		c.Writer.Flush()
 		return nil
 	})
-	
+
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	
+
 	// Keep connection alive
 	<-c.Request.Context().Done()
 }
@@ -609,14 +609,14 @@ func (s *HTTPService) handlePublishEvent(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	
+
 	topic := c.DefaultQuery("topic", "custom")
-	
+
 	if err := s.platform.EventBus().Publish(c.Request.Context(), topic, event); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{"status": "published"})
 }
 
@@ -642,12 +642,12 @@ func (s *HTTPService) corsMiddleware() gin.HandlerFunc {
 		c.Header("Access-Control-Allow-Origin", "*")
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		
+
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(http.StatusNoContent)
 			return
 		}
-		
+
 		c.Next()
 	}
 }
@@ -688,12 +688,12 @@ func (s *HTTPService) authMiddleware(permissions []string) gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		
+
 		// Remove "Bearer " prefix
 		if len(token) > 7 && token[:7] == "Bearer " {
 			token = token[7:]
 		}
-		
+
 		// Validate token
 		tokenInfo, err := s.platform.SecurityManager().ValidateToken(c.Request.Context(), token)
 		if err != nil || !tokenInfo.Valid {
@@ -701,7 +701,7 @@ func (s *HTTPService) authMiddleware(permissions []string) gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		
+
 		// Check permissions
 		for _, permission := range permissions {
 			hasPermission := false
@@ -711,18 +711,18 @@ func (s *HTTPService) authMiddleware(permissions []string) gin.HandlerFunc {
 					break
 				}
 			}
-			
+
 			if !hasPermission {
 				c.JSON(http.StatusForbidden, gin.H{"error": "insufficient permissions"})
 				c.Abort()
 				return
 			}
 		}
-		
+
 		// Set user context
 		c.Set("userID", tokenInfo.PeerID)
 		c.Set("permissions", tokenInfo.Permissions)
-		
+
 		c.Next()
 	}
 }
