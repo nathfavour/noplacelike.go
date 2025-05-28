@@ -218,7 +218,7 @@ func (p *Platform) Start(ctx context.Context) error {
 	}
 
 	// Start network discovery
-	if _, err := p.networkManager.DiscoverPeers(ctx); err != nil {
+	if _, err := p.networkManager.DiscoverPeers(); err != nil {
 		p.logger.Warn("Failed to start peer discovery", core.Field{Key: "error", Value: err})
 	}
 
@@ -460,6 +460,7 @@ func (p *Platform) Health() core.HealthStatus {
 }
 
 // Managers provide access to core platform managers
+// ...existing code...
 func (p *Platform) ServiceManager() core.ServiceManager   { return p.serviceManager }
 func (p *Platform) NetworkManager() core.NetworkManager   { return p.networkManager }
 func (p *Platform) ResourceManager() core.ResourceManager { return p.resourceManager }
@@ -468,6 +469,7 @@ func (p *Platform) ConfigManager() core.ConfigManager     { return p.configManag
 func (p *Platform) EventBus() core.EventBus               { return p.eventBus }
 func (p *Platform) Metrics() core.MetricsCollector        { return p.metrics }
 func (p *Platform) Logger() core.Logger                   { return p.logger }
+// ...existing code...
 
 // loadPlugins loads plugins from configured directories
 func (p *Platform) loadPlugins(ctx context.Context) error {

@@ -4,6 +4,7 @@ package core
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/nathfavour/noplacelike.go/internal/logger"
 )
@@ -34,6 +35,9 @@ type Plugin interface {
 
 	// Event handling
 	HandleEvent(event Event) error
+
+	// Plugin health
+	Health() HealthStatus
 }
 
 // PlatformAPI provides access to platform services for plugins
@@ -60,7 +64,13 @@ type EventBus interface {
 	Unsubscribe(eventType string, handler EventHandler) error
 }
 
-// ...existing code...
+// Field is a key-value pair for structured logging
+// This is a stub for compatibility with platform.go
+// Replace with your actual implementation as needed
+type Field struct {
+	Key   string
+	Value interface{}
+}
 
 // ResourceManager manages platform resources
 type ResourceManager interface {
@@ -132,6 +142,17 @@ type PluginManager interface {
 	ListPlugins() []Plugin
 	IsPluginLoaded(name string) bool
 }
+
+// ServiceManager stub
+// Replace with your actual implementation as needed
+type ServiceManager interface {
+	StartAll(ctx context.Context) error
+	StopAll(ctx context.Context) error
+	HealthCheck() map[string]HealthStatus
+}
+
+// ConfigManager stub
+type ConfigManager interface{}
 
 // Supporting types
 
@@ -239,6 +260,20 @@ type TimerInstance interface {
 
 // Health check types
 type HealthCheck func() error
+
+// HealthStatus constants and struct
+const (
+	HealthStatusHealthy   = "healthy"
+	HealthStatusUnhealthy = "unhealthy"
+	HealthStatusDegraded  = "degraded"
+)
+
+type HealthStatus struct {
+	Status    string                 `json:"status"`
+	Timestamp time.Time              `json:"timestamp"`
+	Error     string                 `json:"error,omitempty"`
+	Details   map[string]interface{} `json:"details,omitempty"`
+}
 
 type HealthStatus struct {
 	Status string                     `json:"status"`
