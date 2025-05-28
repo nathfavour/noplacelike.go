@@ -48,7 +48,7 @@ type Platform struct {
 func NewPlatform(config *Config) *Platform {
 	log := logger.New()
 
-	return & Platform {
+	return &Platform{
 		config:   config,
 		logger:   log,
 		stopChan: make(chan struct{}),
