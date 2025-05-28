@@ -268,20 +268,15 @@ const (
 	HealthStatusDegraded  = "degraded"
 )
 
-type HealthStatus struct {
-	Status    string                 `json:"status"`
-	Timestamp time.Time              `json:"timestamp"`
-	Error     string                 `json:"error,omitempty"`
-	Details   map[string]interface{} `json:"details,omitempty"`
-}
-
-type HealthStatus struct {
-	Status string                     `json:"status"`
-	Checks map[string]ComponentHealth `json:"checks"`
-}
-
 type ComponentHealth struct {
-	Status  string `json:"status"`
-	Message string `json:"message,omitempty"`
-	Error   string `json:"error,omitempty"`
+	Status string `json:"status"`
+	Error  string `json:"error,omitempty"`
+}
+
+type HealthStatus struct {
+	Status    string                     `json:"status"`
+	Timestamp time.Time                  `json:"timestamp"`
+	Error     string                     `json:"error,omitempty"`
+	Details   map[string]interface{}     `json:"details,omitempty"`
+	Checks    map[string]ComponentHealth `json:"checks,omitempty"`
 }
