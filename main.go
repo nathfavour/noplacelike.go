@@ -9,72 +9,47 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/nathfavour/noplacelike.go/cmd"
 	"github.com/nathfavour/noplacelike.go/config"
+	"github.com/nathfavour/noplacelike.go/internal/core"
+	"github.com/nathfavour/noplacelike.go/internal/logger"
 	"github.com/nathfavour/noplacelike.go/internal/platform"
 	"github.com/nathfavour/noplacelike.go/internal/plugins"
 	"github.com/nathfavour/noplacelike.go/internal/services"
 )
 
+var (
+	Version   = "2.0.0"
+	BuildTime = "unknown"
+	GitCommit = "unknown"
+)
+
 func main() {
-	// Load legacy configuration for backward compatibility
-	legacyConfig, err := config.Load()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading configuration: %v\n", err)
-		os.Exit(1)
-	}
+	// Initialize logger
+	log := logger.New()
 
-	// Convert to new platform configuration
-	platformConfig := convertLegacyConfig(legacyConfig)
-
-	// Create platform instance
-	platformInstance, err := platform.NewPlatform(platformConfig)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create platform: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Create context for graceful shutdown
+	// Create root context with cancellation
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Start the platform
-	if err := platformInstance.Start(ctx); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to start platform: %v\n", err)
+	// Handle graceful shutdown
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		<-sigChan
+		log.Info("Received shutdown signal, gracefully shutting down...")
+		cancel()
+	}()
+
+	// Set build info
+	core.SetBuildInfo(Version, BuildTime, GitCommit)
+
+	// Execute command
+	if err := cmd.Execute(ctx); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
-
-	// Load core plugins
-	if err := loadCorePlugins(ctx, platformInstance, legacyConfig); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to load core plugins: %v\n", err)
-		// Don't exit, continue with reduced functionality
-	}
-
-	// Start HTTP service
-	if err := startHTTPService(ctx, platformInstance, legacyConfig); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to start HTTP service: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Display access information
-	displayAccessInfo(legacyConfig.Host, legacyConfig.Port)
-
-	// Wait for interrupt signal
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
-
-	fmt.Println("\nShutting down NoPlaceLike platform...")
-
-	// Create shutdown context with timeout
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer shutdownCancel()
-
-	// Stop the platform
-	if err := platformInstance.Stop(shutdownCtx); err != nil {
-		fmt.Fprintf(os.Stderr, "Error during shutdown: %v\n", err)
-	}
-
-	fmt.Println("NoPlaceLike platform stopped successfully")
 }
 
 // convertLegacyConfig converts legacy config to new platform config

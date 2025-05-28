@@ -8,396 +8,237 @@ import (
 	"time"
 )
 
-// Plugin represents a loadable plugin that extends platform functionality
-type Plugin interface {
-	// Name returns the unique identifier for this plugin
-	Name() string
-
-	// Version returns the plugin version
-	Version() string
-
-	// Initialize sets up the plugin with the given configuration
-	Initialize(ctx context.Context, config map[string]interface{}) error
-
-	// Start begins plugin execution
-	Start(ctx context.Context) error
-
-	// Stop gracefully shuts down the plugin
-	Stop(ctx context.Context) error
-
-	// Health returns the current health status
-	Health() HealthStatus
-
-	// Routes returns HTTP routes this plugin provides
-	Routes() []Route
-
-	// Dependencies returns other plugins this plugin depends on
-	Dependencies() []string
-}
-
-// ServiceManager manages the lifecycle of all platform services
-type ServiceManager interface {
-	// RegisterService adds a new service to the manager
-	RegisterService(name string, service Service) error
-
-	// GetService retrieves a service by name
-	GetService(name string) (Service, error)
-
-	// StartAll starts all registered services
-	StartAll(ctx context.Context) error
-
-	// StopAll gracefully stops all services
-	StopAll(ctx context.Context) error
-
-	// HealthCheck returns the health status of all services
-	HealthCheck() map[string]HealthStatus
-}
-
-// Service represents a core platform service
+// Service represents a platform service that can be started and stopped
 type Service interface {
-	// Name returns the service identifier
-	Name() string
-
-	// Start begins service execution
 	Start(ctx context.Context) error
-
-	// Stop gracefully shuts down the service
 	Stop(ctx context.Context) error
-
-	// Health returns current service health
-	Health() HealthStatus
-
-	// Configuration returns service config schema
-	Configuration() ConfigSchema
+	IsHealthy() bool
+	Name() string
 }
 
-// NetworkManager handles all network-related operations
-type NetworkManager interface {
-	// DiscoverPeers finds other NoPlaceLike instances on the network
-	DiscoverPeers(ctx context.Context) ([]Peer, error)
-
-	// RegisterPeer adds a new peer to the network
-	RegisterPeer(peer Peer) error
-
-	// GetPeers returns all known peers
-	GetPeers() []Peer
-
-	// SendMessage sends a message to a specific peer
-	SendMessage(ctx context.Context, peerID string, message Message) error
-
-	// BroadcastMessage sends a message to all peers
-	BroadcastMessage(ctx context.Context, message Message) error
-
-	// CreateSecureChannel establishes an encrypted connection with a peer
-	CreateSecureChannel(ctx context.Context, peerID string) (SecureChannel, error)
+// Plugin represents a platform plugin
+type Plugin interface {
+	Service
+	
+	// Plugin metadata
+	ID() string
+	Version() string
+	Dependencies() []string
+	
+	// Plugin lifecycle
+	Initialize(platform PlatformAPI) error
+	Configure(config map[string]interface{}) error
+	
+	// HTTP routes
+	Routes() []Route
+	
+	// Event handling
+	HandleEvent(event Event) error
 }
 
-// ResourceManager handles shared resources across the network
-type ResourceManager interface {
-	// RegisterResource makes a local resource available to the network
-	RegisterResource(resource Resource) error
-
-	// GetResource retrieves a resource by ID
-	GetResource(ctx context.Context, resourceID string) (Resource, error)
-
-	// ListResources returns all available resources
-	ListResources(ctx context.Context, filter ResourceFilter) ([]Resource, error)
-
-	// StreamResource provides streaming access to a resource
-	StreamResource(ctx context.Context, resourceID string) (io.ReadCloser, error)
-
-	// SubscribeToUpdates notifies when resources change
-	SubscribeToUpdates(ctx context.Context) (<-chan ResourceEvent, error)
+// PlatformAPI provides access to platform services for plugins
+type PlatformAPI interface {
+	GetLogger() Logger
+	GetEventBus() EventBus
+	GetResourceManager() ResourceManager
+	GetNetworkManager() NetworkManager
+	GetSecurityManager() SecurityManager
+	GetMetrics() MetricsCollector
 }
 
-// SecurityManager handles authentication, authorization, and encryption
-type SecurityManager interface {
-	// Authenticate verifies peer identity
-	Authenticate(ctx context.Context, credentials Credentials) (AuthResult, error)
-
-	// Authorize checks if a peer can access a resource
-	Authorize(ctx context.Context, peerID string, resource string, action string) (bool, error)
-
-	// Encrypt encrypts data for transmission
-	Encrypt(data []byte, recipientID string) ([]byte, error)
-
-	// Decrypt decrypts received data
-	Decrypt(data []byte, senderID string) ([]byte, error)
-
-	// GenerateToken creates an access token
-	GenerateToken(ctx context.Context, peerID string, permissions []Permission) (string, error)
-
-	// ValidateToken verifies an access token
-	ValidateToken(ctx context.Context, token string) (TokenInfo, error)
-}
-
-// EventBus handles inter-service communication
-type EventBus interface {
-	// Publish sends an event to all subscribers
-	Publish(ctx context.Context, topic string, event Event) error
-
-	// Subscribe registers a handler for events on a topic
-	Subscribe(ctx context.Context, topic string, handler EventHandler) error
-
-	// Unsubscribe removes a handler from a topic
-	Unsubscribe(ctx context.Context, topic string, handler EventHandler) error
-}
-
-// ConfigManager handles configuration across the platform
-type ConfigManager interface {
-	// Get retrieves a configuration value
-	Get(key string) (interface{}, error)
-
-	// Set updates a configuration value
-	Set(key string, value interface{}) error
-
-	// Watch monitors configuration changes
-	Watch(ctx context.Context, key string) (<-chan ConfigChange, error)
-
-	// Validate checks configuration against schema
-	Validate(config map[string]interface{}, schema ConfigSchema) error
-
-	// Reload reloads configuration from storage
-	Reload(ctx context.Context) error
-}
-
-// MetricsCollector gathers performance and usage metrics
-type MetricsCollector interface {
-	// Counter increments a counter metric
-	Counter(name string, tags map[string]string) error
-
-	// Gauge sets a gauge metric value
-	Gauge(name string, value float64, tags map[string]string) error
-
-	// Histogram records a histogram value
-	Histogram(name string, value float64, tags map[string]string) error
-
-	// Timer records timing information
-	Timer(name string, duration time.Duration, tags map[string]string) error
-
-	// Export returns metrics in the specified format
-	Export(format string) ([]byte, error)
-}
-
-// Logger provides structured logging across the platform
+// Logger interface for structured logging
 type Logger interface {
-	// Debug logs debug-level information
-	Debug(msg string, fields ...Field)
-
-	// Info logs info-level information
-	Info(msg string, fields ...Field)
-
-	// Warn logs warning-level information
-	Warn(msg string, fields ...Field)
-
-	// Error logs error-level information
-	Error(msg string, fields ...Field)
-
-	// Fatal logs fatal-level information and exits
-	Fatal(msg string, fields ...Field)
-
-	// WithFields returns a logger with additional fields
-	WithFields(fields ...Field) Logger
-
-	// WithContext returns a logger with context
-	WithContext(ctx context.Context) Logger
+	Debug(msg string, fields ...interface{})
+	Info(msg string, fields ...interface{})
+	Warn(msg string, fields ...interface{})
+	Error(msg string, fields ...interface{})
+	Fatal(msg string, fields ...interface{})
+	WithFields(fields map[string]interface{}) Logger
 }
 
-// Common types and structures
-type (
-	// HealthStatus represents the health of a component
-	HealthStatus struct {
-		Status    string                 `json:"status"`
-		Timestamp time.Time              `json:"timestamp"`
-		Details   map[string]interface{} `json:"details,omitempty"`
-		Error     string                 `json:"error,omitempty"`
-	}
+// EventBus handles event publishing and subscription
+type EventBus interface {
+	Service
+	
+	Publish(event Event) error
+	Subscribe(eventType string, handler EventHandler) error
+	Unsubscribe(eventType string, handler EventHandler) error
+}
 
-	// Route represents an HTTP route provided by a plugin
-	Route struct {
-		Method     string           `json:"method"`
-		Path       string           `json:"path"`
-		Handler    http.HandlerFunc `json:"-"`
-		Middleware []MiddlewareFunc `json:"-"`
-		Auth       AuthRequirement  `json:"auth"`
-	}
+// ResourceManager manages platform resources
+type ResourceManager interface {
+	Service
+	
+	RegisterResource(resource Resource) error
+	UnregisterResource(id string) error
+	GetResource(id string) (Resource, error)
+	ListResources() []Resource
+	StreamResource(id string) (ResourceStream, error)
+}
 
-	// Peer represents another NoPlaceLike instance
-	Peer struct {
-		ID           string            `json:"id"`
-		Name         string            `json:"name"`
-		Address      string            `json:"address"`
-		Port         int               `json:"port"`
-		Version      string            `json:"version"`
-		Capabilities []string          `json:"capabilities"`
-		LastSeen     time.Time         `json:"lastSeen"`
-		Metadata     map[string]string `json:"metadata"`
-	}
+// NetworkManager handles network operations and peer management
+type NetworkManager interface {
+	Service
+	
+	DiscoverPeers() ([]Peer, error)
+	ConnectToPeer(address string) (Peer, error)
+	ListPeers() []Peer
+	SendMessage(peerID string, message []byte) error
+	BroadcastMessage(message []byte) error
+}
 
-	// Resource represents a shared resource
-	Resource struct {
-		ID          string            `json:"id"`
-		Name        string            `json:"name"`
-		Type        string            `json:"type"`
-		Size        int64             `json:"size"`
-		Owner       string            `json:"owner"`
-		Permissions []Permission      `json:"permissions"`
-		Metadata    map[string]string `json:"metadata"`
-		CreatedAt   time.Time         `json:"createdAt"`
-		UpdatedAt   time.Time         `json:"updatedAt"`
-	}
+// SecurityManager handles authentication and authorization
+type SecurityManager interface {
+	Service
+	
+	Authenticate(token string) (*User, error)
+	Authorize(user *User, resource string, action string) bool
+	GenerateToken(user *User) (string, error)
+	ValidatePermissions(userID string, permissions []string) bool
+}
 
-	// Message represents inter-peer communication
-	Message struct {
-		ID        string            `json:"id"`
-		Type      string            `json:"type"`
-		From      string            `json:"from"`
-		To        string            `json:"to"`
-		Payload   []byte            `json:"payload"`
-		Metadata  map[string]string `json:"metadata"`
-		Timestamp time.Time         `json:"timestamp"`
-	}
+// MetricsCollector collects and exports metrics
+type MetricsCollector interface {
+	Service
+	
+	Counter(name string) Counter
+	Gauge(name string) Gauge
+	Histogram(name string) Histogram
+	Timer(name string) Timer
+}
 
-	// Event represents system events
-	Event struct {
-		ID        string            `json:"id"`
-		Type      string            `json:"type"`
-		Source    string            `json:"source"`
-		Data      interface{}       `json:"data"`
-		Metadata  map[string]string `json:"metadata"`
-		Timestamp time.Time         `json:"timestamp"`
-	}
+// HealthChecker monitors component health
+type HealthChecker interface {
+	Service
+	
+	RegisterCheck(name string, check HealthCheck) error
+	GetStatus() HealthStatus
+	IsHealthy() bool
+}
 
-	// ConfigSchema defines configuration structure
-	ConfigSchema struct {
-		Properties map[string]PropertySchema `json:"properties"`
-		Required   []string                  `json:"required"`
-	}
+// HTTPService provides HTTP server functionality
+type HTTPService interface {
+	Service
+	
+	RegisterRoute(route Route) error
+	RegisterMiddleware(middleware func(http.Handler) http.Handler)
+	GetRouter() http.Handler
+}
 
-	// PropertySchema defines a configuration property
-	PropertySchema struct {
-		Type        string      `json:"type"`
-		Description string      `json:"description"`
-		Default     interface{} `json:"default"`
-		Validation  []Validator `json:"validation"`
-	}
+// Supporting types
 
-	// Permission represents access permissions
-	Permission struct {
-		Resource string   `json:"resource"`
-		Actions  []string `json:"actions"`
-	}
+// Route represents an HTTP route
+type Route struct {
+	Method      string
+	Path        string
+	Handler     http.HandlerFunc
+	Middleware  []func(http.Handler) http.Handler
+	Auth        AuthRequirement
+	Description string
+}
 
-	// Credentials for authentication
-	Credentials struct {
-		Type string                 `json:"type"`
-		Data map[string]interface{} `json:"data"`
-	}
+// AuthRequirement specifies authentication requirements for a route
+type AuthRequirement struct {
+	Required    bool
+	Permissions []string
+	Roles       []string
+}
 
-	// AuthResult contains authentication results
-	AuthResult struct {
-		Success     bool              `json:"success"`
-		PeerID      string            `json:"peerId"`
-		Permissions []Permission      `json:"permissions"`
-		Token       string            `json:"token"`
-		ExpiresAt   time.Time         `json:"expiresAt"`
-		Metadata    map[string]string `json:"metadata"`
-	}
+// Event represents a platform event
+type Event struct {
+	ID        string                 `json:"id"`
+	Type      string                 `json:"type"`
+	Source    string                 `json:"source"`
+	Timestamp int64                  `json:"timestamp"`
+	Data      map[string]interface{} `json:"data"`
+}
 
-	// TokenInfo contains token validation results
-	TokenInfo struct {
-		Valid       bool              `json:"valid"`
-		PeerID      string            `json:"peerId"`
-		Permissions []Permission      `json:"permissions"`
-		ExpiresAt   time.Time         `json:"expiresAt"`
-		Metadata    map[string]string `json:"metadata"`
-	}
+// EventHandler handles events
+type EventHandler func(event Event) error
 
-	// Field represents a structured log field
-	Field struct {
-		Key   string      `json:"key"`
-		Value interface{} `json:"value"`
-	}
+// Resource represents a platform resource
+type Resource struct {
+	ID          string                 `json:"id"`
+	Type        string                 `json:"type"`
+	Name        string                 `json:"name"`
+	Description string                 `json:"description"`
+	Metadata    map[string]interface{} `json:"metadata"`
+	Provider    string                 `json:"provider"`
+	CreatedAt   int64                  `json:"createdAt"`
+	UpdatedAt   int64                  `json:"updatedAt"`
+}
 
-	// ResourceFilter for filtering resources
-	ResourceFilter struct {
-		Type    string            `json:"type"`
-		Owner   string            `json:"owner"`
-		Tags    map[string]string `json:"tags"`
-		MinSize int64             `json:"minSize"`
-		MaxSize int64             `json:"maxSize"`
-	}
+// ResourceStream represents a streamable resource
+type ResourceStream interface {
+	Read(p []byte) (n int, err error)
+	Close() error
+	ContentType() string
+	Size() int64
+}
 
-	// ResourceEvent represents resource changes
-	ResourceEvent struct {
-		Type      string    `json:"type"` // created, updated, deleted
-		Resource  Resource  `json:"resource"`
-		Timestamp time.Time `json:"timestamp"`
-	}
+// Peer represents a network peer
+type Peer struct {
+	ID        string                 `json:"id"`
+	Address   string                 `json:"address"`
+	Name      string                 `json:"name"`
+	Status    string                 `json:"status"`
+	Metadata  map[string]interface{} `json:"metadata"`
+	ConnectedAt int64                `json:"connectedAt"`
+	LastSeen    int64                `json:"lastSeen"`
+}
 
-	// ConfigChange represents configuration updates
-	ConfigChange struct {
-		Key       string      `json:"key"`
-		OldValue  interface{} `json:"oldValue"`
-		NewValue  interface{} `json:"newValue"`
-		Timestamp time.Time   `json:"timestamp"`
-	}
+// User represents a platform user
+type User struct {
+	ID          string            `json:"id"`
+	Username    string            `json:"username"`
+	Email       string            `json:"email"`
+	Roles       []string          `json:"roles"`
+	Permissions []string          `json:"permissions"`
+	Metadata    map[string]string `json:"metadata"`
+	CreatedAt   int64             `json:"createdAt"`
+	LastLogin   int64             `json:"lastLogin"`
+}
 
-	// SecureChannel represents an encrypted communication channel
-	SecureChannel interface {
-		Send(data []byte) error
-		Receive() ([]byte, error)
-		Close() error
-	}
+// Metrics interfaces
+type Counter interface {
+	Inc()
+	Add(delta float64)
+	Get() float64
+}
 
-	// EventHandler processes events
-	EventHandler func(ctx context.Context, event Event) error
+type Gauge interface {
+	Set(value float64)
+	Inc()
+	Dec()
+	Add(delta float64)
+	Sub(delta float64)
+	Get() float64
+}
 
-	// MiddlewareFunc for HTTP middleware
-	MiddlewareFunc func(http.Handler) http.Handler
+type Histogram interface {
+	Observe(value float64)
+	Reset()
+}
 
-	// AuthRequirement specifies authentication needs
-	AuthRequirement struct {
-		Required    bool     `json:"required"`
-		Permissions []string `json:"permissions"`
-	}
+type Timer interface {
+	Start() TimerInstance
+	Observe(duration float64)
+}
 
-	// Validator for configuration validation
-	Validator interface {
-		Validate(value interface{}) error
-	}
-)
+type TimerInstance interface {
+	Stop()
+}
 
-// Standard event types
-const (
-	EventPeerJoined      = "peer.joined"
-	EventPeerLeft        = "peer.left"
-	EventResourceAdded   = "resource.added"
-	EventResourceUpdated = "resource.updated"
-	EventResourceRemoved = "resource.removed"
-	EventConfigChanged   = "config.changed"
-	EventServiceStarted  = "service.started"
-	EventServiceStopped  = "service.stopped"
-	EventPluginLoaded    = "plugin.loaded"
-	EventPluginUnloaded  = "plugin.unloaded"
-)
+// Health check types
+type HealthCheck func() error
 
-// Standard health statuses
-const (
-	HealthStatusHealthy   = "healthy"
-	HealthStatusDegraded  = "degraded"
-	HealthStatusUnhealthy = "unhealthy"
-	HealthStatusUnknown   = "unknown"
-)
+type HealthStatus struct {
+	Status string                    `json:"status"`
+	Checks map[string]ComponentHealth `json:"checks"`
+}
 
-// Standard resource types
-const (
-	ResourceTypeFile      = "file"
-	ResourceTypeDirectory = "directory"
-	ResourceTypeClipboard = "clipboard"
-	ResourceTypeAudio     = "audio"
-	ResourceTypeVideo     = "video"
-	ResourceTypeScreen    = "screen"
-	ResourceTypeProcess   = "process"
-	ResourceTypeService   = "service"
-)
+type ComponentHealth struct {
+	Status  string `json:"status"`
+	Message string `json:"message,omitempty"`
+	Error   string `json:"error,omitempty"`
+}
