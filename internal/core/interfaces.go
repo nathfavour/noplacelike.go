@@ -15,6 +15,8 @@ type Service interface {
 	Stop(ctx context.Context) error
 	IsHealthy() bool
 	Name() string
+	Health() HealthStatus
+	Configuration() ConfigSchema
 }
 
 // Plugin represents a platform plugin
@@ -60,8 +62,11 @@ type EventBus interface {
 	Service
 
 	Publish(event Event) error
+	PublishToTopic(ctx context.Context, topic string, event Event) error
 	Subscribe(eventType string, handler EventHandler) error
+	SubscribeWithContext(ctx context.Context, eventType string, handler func(context.Context, Event) error) error
 	Unsubscribe(eventType string, handler EventHandler) error
+	Configuration() ConfigSchema
 }
 
 // Field is a key-value pair for structured logging
@@ -78,9 +83,16 @@ type ResourceManager interface {
 
 	RegisterResource(resource Resource) error
 	UnregisterResource(id string) error
-	GetResource(id string) (Resource, error)
-	ListResources() []Resource
-	StreamResource(id string) (ResourceStream, error)
+	GetResource(ctx context.Context, id string) (Resource, error)
+	ListResources(ctx context.Context, filter ResourceFilter) ([]Resource, error)
+	StreamResource(ctx context.Context, id string) (ResourceStream, error)
+	Configuration() ConfigSchema
+}
+
+// ResourceFilter for filtering resources
+type ResourceFilter struct {
+	Type  string `json:"type,omitempty"`
+	Owner string `json:"owner,omitempty"`
 }
 
 // NetworkManager handles network operations and peer management
@@ -88,10 +100,12 @@ type NetworkManager interface {
 	Service
 
 	DiscoverPeers() ([]Peer, error)
+	GetPeers() []Peer
 	ConnectToPeer(address string) (Peer, error)
 	ListPeers() []Peer
 	SendMessage(peerID string, message []byte) error
 	BroadcastMessage(message []byte) error
+	Configuration() ConfigSchema
 }
 
 // SecurityManager handles authentication and authorization
@@ -102,6 +116,21 @@ type SecurityManager interface {
 	Authorize(user *User, resource string, action string) bool
 	GenerateToken(user *User) (string, error)
 	ValidatePermissions(userID string, permissions []string) bool
+	ValidateToken(ctx context.Context, token string) (*TokenInfo, error)
+	Configuration() ConfigSchema
+}
+
+// TokenInfo for authentication
+type TokenInfo struct {
+	Valid       bool         `json:"valid"`
+	PeerID      string       `json:"peerId"`
+	Permissions []Permission `json:"permissions"`
+}
+
+// Permission represents a user permission
+type Permission struct {
+	Resource string `json:"resource"`
+	Action   string `json:"action"`
 }
 
 // MetricsCollector collects and exports metrics
@@ -112,6 +141,8 @@ type MetricsCollector interface {
 	Gauge(name string) Gauge
 	Histogram(name string) Histogram
 	Timer(name string) Timer
+	Export(format string) ([]byte, error)
+	Configuration() ConfigSchema
 }
 
 // HealthChecker monitors component health
@@ -121,6 +152,7 @@ type HealthChecker interface {
 	RegisterCheck(name string, check HealthCheck) error
 	GetStatus() HealthStatus
 	IsHealthy() bool
+	Configuration() ConfigSchema
 }
 
 // HTTPService provides HTTP server functionality
@@ -130,6 +162,7 @@ type HTTPService interface {
 	RegisterRoute(route Route) error
 	RegisterMiddleware(middleware func(http.Handler) http.Handler)
 	GetRouter() http.Handler
+	Configuration() ConfigSchema
 }
 
 // PluginManager manages platform plugins
@@ -141,6 +174,7 @@ type PluginManager interface {
 	GetPlugin(name string) (Plugin, error)
 	ListPlugins() []Plugin
 	IsPluginLoaded(name string) bool
+	Configuration() ConfigSchema
 }
 
 // ServiceManager stub
@@ -149,6 +183,8 @@ type ServiceManager interface {
 	StartAll(ctx context.Context) error
 	StopAll(ctx context.Context) error
 	HealthCheck() map[string]HealthStatus
+	GetService(name string) (Service, error)
+	Configuration() ConfigSchema
 }
 
 // ConfigManager stub
@@ -279,4 +315,17 @@ type HealthStatus struct {
 	Error     string                     `json:"error,omitempty"`
 	Details   map[string]interface{}     `json:"details,omitempty"`
 	Checks    map[string]ComponentHealth `json:"checks,omitempty"`
+}
+
+// ConfigSchema and PropertySchema for service configuration
+type ConfigSchema struct {
+	Properties map[string]PropertySchema `json:"properties"`
+	Required   []string                  `json:"required,omitempty"`
+}
+
+type PropertySchema struct {
+	Type        string      `json:"type"`
+	Description string      `json:"description,omitempty"`
+	Default     interface{} `json:"default,omitempty"`
+	Required    bool        `json:"required,omitempty"`
 }

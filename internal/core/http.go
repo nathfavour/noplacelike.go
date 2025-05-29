@@ -283,3 +283,27 @@ func (h *httpService) handleDeleteResource(c *gin.Context) {
 	// TODO: Implement resource deletion
 	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("Resource %s deleted", id)})
 }
+
+func (s *httpService) Configuration() ConfigSchema {
+	return ConfigSchema{
+		Properties: map[string]PropertySchema{
+			"host": {
+				Type:        "string",
+				Description: "HTTP server host",
+				Default:     "localhost",
+			},
+			"port": {
+				Type:        "integer",
+				Description: "HTTP server port",
+				Default:     8080,
+			},
+		},
+	}
+}
+
+func (s *httpService) Health() HealthStatus {
+	return HealthStatus{
+		Status:    HealthStatusHealthy,
+		Timestamp: time.Now(),
+	}
+}

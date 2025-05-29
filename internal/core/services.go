@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/nathfavour/noplacelike.go/internal/logger"
 )
@@ -85,6 +86,25 @@ func (e *eventBus) Unsubscribe(eventType string, handler EventHandler) error {
 	return nil
 }
 
+func (e *eventBus) Configuration() ConfigSchema {
+	return ConfigSchema{
+		Properties: map[string]PropertySchema{
+			"enabled": {
+				Type:        "boolean",
+				Description: "Enable event bus",
+				Default:     true,
+			},
+		},
+	}
+}
+
+func (e *eventBus) Health() HealthStatus {
+	return HealthStatus{
+		Status:    HealthStatusHealthy,
+		Timestamp: time.Now(),
+	}
+}
+
 // NetworkManager implementation
 type networkManager struct {
 	config   NetworkConfig
@@ -133,8 +153,7 @@ func (n *networkManager) Name() string {
 }
 
 func (n *networkManager) DiscoverPeers() ([]Peer, error) {
-	// TODO: Implement peer discovery
-	return []Peer{}, nil
+	return []Peer{}, nil // TODO: implement actual peer discovery
 }
 
 func (n *networkManager) ConnectToPeer(address string) (Peer, error) {
@@ -161,6 +180,29 @@ func (n *networkManager) SendMessage(peerID string, message []byte) error {
 func (n *networkManager) BroadcastMessage(message []byte) error {
 	// TODO: Implement message broadcasting
 	return nil
+}
+
+func (n *networkManager) Configuration() ConfigSchema {
+	return ConfigSchema{
+		Properties: map[string]PropertySchema{
+			"host": {
+				Type:        "string",
+				Description: "Network host",
+				Default:     "localhost",
+			},
+		},
+	}
+}
+
+func (n *networkManager) GetPeers() []Peer {
+	return []Peer{} // TODO: implement actual peer list
+}
+
+func (n *networkManager) Health() HealthStatus {
+	return HealthStatus{
+		Status:    HealthStatusHealthy,
+		Timestamp: time.Now(),
+	}
 }
 
 // ResourceManager implementation
@@ -226,15 +268,9 @@ func (r *resourceManager) UnregisterResource(id string) error {
 	return nil
 }
 
-func (r *resourceManager) GetResource(id string) (Resource, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	resource, exists := r.resources[id]
-	if !exists {
-		return Resource{}, ErrResourceNotFound
-	}
-	return resource, nil
+func (r *resourceManager) GetResource(ctx context.Context, name string) (Resource, error) {
+	// TODO: implement actual resource lookup
+	return nil, fmt.Errorf("resource %s not found", name)
 }
 
 func (r *resourceManager) ListResources() []Resource {
@@ -251,6 +287,25 @@ func (r *resourceManager) ListResources() []Resource {
 func (r *resourceManager) StreamResource(id string) (ResourceStream, error) {
 	// TODO: Implement resource streaming
 	return nil, fmt.Errorf("not implemented")
+}
+
+func (r *resourceManager) Configuration() ConfigSchema {
+	return ConfigSchema{
+		Properties: map[string]PropertySchema{
+			"enabled": {
+				Type:        "boolean",
+				Description: "Enable resource manager",
+				Default:     true,
+			},
+		},
+	}
+}
+
+func (r *resourceManager) Health() HealthStatus {
+	return HealthStatus{
+		Status:    HealthStatusHealthy,
+		Timestamp: time.Now(),
+	}
 }
 
 // SecurityManager implementation
@@ -314,4 +369,23 @@ func (s *securityManager) GenerateToken(user *User) (string, error) {
 func (s *securityManager) ValidatePermissions(userID string, permissions []string) bool {
 	// TODO: Implement permission validation
 	return true
+}
+
+func (s *securityManager) Configuration() ConfigSchema {
+	return ConfigSchema{
+		Properties: map[string]PropertySchema{
+			"enabled": {
+				Type:        "boolean",
+				Description: "Enable security manager",
+				Default:     true,
+			},
+		},
+	}
+}
+
+func (s *securityManager) Health() HealthStatus {
+	return HealthStatus{
+		Status:    HealthStatusHealthy,
+		Timestamp: time.Now(),
+	}
 }

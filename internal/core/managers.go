@@ -67,6 +67,29 @@ func (m *metricsCollector) Timer(name string) Timer {
 	return &timer{}
 }
 
+func (m *metricsCollector) Configuration() ConfigSchema {
+	return ConfigSchema{
+		Properties: map[string]PropertySchema{
+			"enabled": {
+				Type:        "boolean",
+				Description: "Enable metrics collection",
+				Default:     true,
+			},
+		},
+	}
+}
+
+func (m *metricsCollector) Export(format string) ([]byte, error) {
+	return []byte("metrics data"), nil // TODO: implement actual metrics export
+}
+
+func (m *metricsCollector) Health() HealthStatus {
+	return HealthStatus{
+		Status:    HealthStatusHealthy,
+		Timestamp: time.Now(),
+	}
+}
+
 // Simple metric implementations
 type counter struct {
 	value float64
@@ -233,6 +256,25 @@ func (h *healthChecker) GetStatus() HealthStatus {
 	return status
 }
 
+func (h *healthChecker) Configuration() ConfigSchema {
+	return ConfigSchema{
+		Properties: map[string]PropertySchema{
+			"interval": {
+				Type:        "string",
+				Description: "Health check interval",
+				Default:     "30s",
+			},
+		},
+	}
+}
+
+func (h *healthChecker) Health() HealthStatus {
+	return HealthStatus{
+		Status:    HealthStatusHealthy,
+		Timestamp: time.Now(),
+	}
+}
+
 // PluginManager implementation
 type pluginManager struct {
 	config   PluginsConfig
@@ -329,4 +371,23 @@ func (p *pluginManager) LoadPlugin(name string) error {
 func (p *pluginManager) UnloadPlugin(name string) error {
 	// TODO: Implement plugin unloading logic
 	return nil
+}
+
+func (p *pluginManager) Configuration() ConfigSchema {
+	return ConfigSchema{
+		Properties: map[string]PropertySchema{
+			"enabled": {
+				Type:        "boolean",
+				Description: "Enable plugin manager",
+				Default:     true,
+			},
+		},
+	}
+}
+
+func (p *pluginManager) Health() HealthStatus {
+	return HealthStatus{
+		Status:    HealthStatusHealthy,
+		Timestamp: time.Now(),
+	}
 }
