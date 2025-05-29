@@ -202,6 +202,7 @@ type ServiceManager interface {
 	HealthCheck() map[string]HealthStatus
 	GetService(name string) (Service, error)
 	Configuration() ConfigSchema
+	RegisterService(service Service) error
 }
 
 // ConfigManager stub

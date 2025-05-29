@@ -1,7 +1,7 @@
 package plugins
 
 import (
-	"github.com/example/core"
+	"github.com/nathfavour/noplacelike.go/internal/core"
 )
 
 // SystemInfoPlugin represents the system information plugin
