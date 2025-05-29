@@ -89,6 +89,14 @@ type ResourceManager interface {
 	Configuration() ConfigSchema
 }
 
+// Resource interface definition
+type Resource interface {
+	Service // Embed Service interface
+	GetMetadata() map[string]interface{}
+	GetSize() int64
+	GetType() string
+}
+
 // ResourceFilter for filtering resources
 type ResourceFilter struct {
 	Name string `json:"name,omitempty"`

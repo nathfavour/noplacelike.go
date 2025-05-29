@@ -81,9 +81,14 @@ func (e *eventBus) Subscribe(eventType string, handler EventHandler) error {
 	return nil
 }
 
+// Fix the EventHandler wrapping issue
 func (e *eventBus) SubscribeWithContext(ctx context.Context, topic string, handler func(context.Context, Event) error) error {
 	// TODO: implement context-aware subscription with proper handler type
-	return e.Subscribe(topic, handler)
+	// For now, wrap the handler to match EventHandler signature
+	wrappedHandler := EventHandler(func(event Event) error {
+		return handler(ctx, event)
+	})
+	return e.Subscribe(topic, wrappedHandler)
 }
 
 func (e *eventBus) Unsubscribe(eventType string, handler EventHandler) error {
@@ -278,36 +283,40 @@ func (r *resourceManager) UnregisterResource(id string) error {
 	return nil
 }
 
-// Add ResourceFilter type
-type ResourceFilter struct {
-	Name string
-	Type string
-}
-
 // Fix ListResources method signature
 func (r *resourceManager) ListResources(ctx context.Context, filter ResourceFilter) ([]Resource, error) {
 	// TODO: implement actual resource listing with filter
 	return []Resource{}, nil
 }
 
-// Create a dummy resource type for the return value
-type dummyResource struct {
+// Simple resource implementation that should satisfy any Resource interface
+type simpleResource struct {
 	name string
 }
 
-func (d *dummyResource) Name() string { return d.name }
-
-// Make dummyResource implement the Resource interface properly
-func (d *dummyResource) Start(ctx context.Context) error { return nil }
-func (d *dummyResource) Stop(ctx context.Context) error  { return nil }
-func (d *dummyResource) Configuration() ConfigSchema {
+func (s *simpleResource) Name() string                    { return s.name }
+func (s *simpleResource) Start(ctx context.Context) error { return nil }
+func (s *simpleResource) Stop(ctx context.Context) error  { return nil }
+func (s *simpleResource) IsHealthy() bool                 { return true }
+func (s *simpleResource) Configuration() ConfigSchema {
 	return ConfigSchema{Properties: make(map[string]PropertySchema)}
 }
+func (s *simpleResource) Health() HealthStatus {
+	return HealthStatus{
+		Status:    HealthStatusHealthy,
+		Timestamp: time.Now(),
+	}
+}
+func (s *simpleResource) GetMetadata() map[string]interface{} {
+	return make(map[string]interface{})
+}
+func (s *simpleResource) GetSize() int64  { return 0 }
+func (s *simpleResource) GetType() string { return "simple" }
 
 // Fix GetResource to return a valid Resource instead of nil
 func (r *resourceManager) GetResource(ctx context.Context, name string) (Resource, error) {
 	// TODO: implement actual resource lookup
-	return &dummyResource{name: "not-found"}, fmt.Errorf("resource %s not found", name)
+	return &simpleResource{name: "not-found"}, fmt.Errorf("resource %s not found", name)
 }
 
 // Fix StreamResource method signature
