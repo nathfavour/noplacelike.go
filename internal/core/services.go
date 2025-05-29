@@ -269,8 +269,8 @@ func (r *resourceManager) RegisterResource(resource Resource) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.resources[resource.ID] = resource
-	r.logger.Info("Resource registered", "id", resource.ID, "type", resource.Type)
+	r.resources[resource.ID()] = resource
+	r.logger.Info("Resource registered", "id", resource.ID(), "type", resource.Type())
 	return nil
 }
 

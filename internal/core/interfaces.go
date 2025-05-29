@@ -137,9 +137,11 @@ type SecurityManager interface {
 
 // TokenInfo contains token validation information
 type TokenInfo struct {
-	Valid    bool   `json:"valid"`
-	UserID   string `json:"userId,omitempty"`
-	ExpireAt int64  `json:"expireAt,omitempty"`
+	Valid       bool     `json:"valid"`
+	UserID      string   `json:"userId,omitempty"`
+	ExpireAt    int64    `json:"expireAt,omitempty"`
+	Permissions []string `json:"permissions,omitempty"`
+	PeerID      string   `json:"peerId,omitempty"`
 }
 
 // Permission represents a user permission
