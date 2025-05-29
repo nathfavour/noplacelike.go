@@ -596,8 +596,6 @@ func (s *HTTPService) handleEventStream(c *gin.Context) {
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -612,9 +610,9 @@ func (s *HTTPService) handlePublishEvent(c *gin.Context) {
 		return
 	}
 
-	topic := c.DefaultQuery("topic", "custom")
+	// topic := c.DefaultQuery("topic", "custom")
 
-	if err := s.platform.EventBus().Publish(c.Request.Context(), topic, event); err != nil {
+	if err := s.platform.EventBus().Publish(event); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -708,7 +706,7 @@ func (s *HTTPService) authMiddleware(permissions []string) gin.HandlerFunc {
 		for _, permission := range permissions {
 			hasPermission := false
 			for _, userPerm := range tokenInfo.Permissions {
-				if userPerm.Resource == permission {
+				if userPerm == permission {
 					hasPermission = true
 					break
 				}
