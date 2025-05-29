@@ -91,8 +91,14 @@ type ResourceManager interface {
 
 // ResourceFilter for filtering resources
 type ResourceFilter struct {
-	Type  string `json:"type,omitempty"`
-	Owner string `json:"owner,omitempty"`
+	Name string `json:"name,omitempty"`
+	Type string `json:"type,omitempty"`
+}
+
+// ResourceStream for streaming resource data
+type ResourceStream interface {
+	Read() ([]byte, error)
+	Close() error
 }
 
 // NetworkManager handles network operations and peer management
@@ -120,11 +126,11 @@ type SecurityManager interface {
 	Configuration() ConfigSchema
 }
 
-// TokenInfo for authentication
+// TokenInfo contains token validation information
 type TokenInfo struct {
-	Valid       bool         `json:"valid"`
-	PeerID      string       `json:"peerId"`
-	Permissions []Permission `json:"permissions"`
+	Valid    bool   `json:"valid"`
+	UserID   string `json:"userId,omitempty"`
+	ExpireAt int64  `json:"expireAt,omitempty"`
 }
 
 // Permission represents a user permission
