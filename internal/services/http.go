@@ -494,7 +494,7 @@ func (s *HTTPService) handleGetPeer(c *gin.Context) {
 }
 
 func (s *HTTPService) handleDiscoverPeers(c *gin.Context) {
-	peers, err := s.platform.NetworkManager().DiscoverPeers(c.Request.Context())
+	peers, err := s.platform.NetworkManager().DiscoverPeers()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -505,8 +505,10 @@ func (s *HTTPService) handleDiscoverPeers(c *gin.Context) {
 
 func (s *HTTPService) handleListResources(c *gin.Context) {
 	filter := core.ResourceFilter{
-		Type:  c.Query("type"),
-		Owner: c.Query("owner"),
+		Name: "example",
+		Type: "file",
+		// Type:  c.Query("type"),
+		// Owner: c.Query("owner"),
 	}
 
 	resources, err := s.platform.ResourceManager().ListResources(c.Request.Context(), filter)
@@ -569,13 +571,11 @@ func (s *HTTPService) handleStreamResource(c *gin.Context) {
 
 	// Copy stream to response
 	c.Stream(func(w io.Writer) bool {
-		buffer := make([]byte, 4096)
-		n, err := stream.Read(buffer)
+		data, err := stream.Read()
 		if err != nil {
 			return false
 		}
-
-		w.Write(buffer[:n])
+		w.Write(data)
 		return true
 	})
 }
@@ -587,13 +587,15 @@ func (s *HTTPService) handleEventStream(c *gin.Context) {
 	c.Header("Connection", "keep-alive")
 
 	// Subscribe to events
-	err := s.platform.EventBus().Subscribe(c.Request.Context(), "*", func(ctx context.Context, event core.Event) error {
+	err := s.platform.EventBus().Subscribe("*", core.EventHandler(func(event core.Event) error {
 		data, _ := json.Marshal(event)
 		c.Writer.Write([]byte(fmt.Sprintf("data: %s\n\n", data)))
 		c.Writer.Flush()
 		return nil
-	})
+	}))
 
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
