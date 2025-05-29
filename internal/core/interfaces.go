@@ -89,12 +89,13 @@ type ResourceManager interface {
 	Configuration() ConfigSchema
 }
 
-// Resource interface definition
+// Resource interface definition (single, canonical)
 type Resource interface {
 	Service // Embed Service interface
+	ID() string
+	Type() string
 	GetMetadata() map[string]interface{}
 	GetSize() int64
-	GetType() string
 }
 
 // ResourceFilter for filtering resources
@@ -103,7 +104,7 @@ type ResourceFilter struct {
 	Type string `json:"type,omitempty"`
 }
 
-// ResourceStream for streaming resource data
+// ResourceStream for streaming resource data (single, canonical)
 type ResourceStream interface {
 	Read() ([]byte, error)
 	Close() error
@@ -234,26 +235,6 @@ type Event struct {
 
 // EventHandler handles events
 type EventHandler func(event Event) error
-
-// Resource represents a platform resource
-type Resource struct {
-	ID          string                 `json:"id"`
-	Type        string                 `json:"type"`
-	Name        string                 `json:"name"`
-	Description string                 `json:"description"`
-	Metadata    map[string]interface{} `json:"metadata"`
-	Provider    string                 `json:"provider"`
-	CreatedAt   int64                  `json:"createdAt"`
-	UpdatedAt   int64                  `json:"updatedAt"`
-}
-
-// ResourceStream represents a streamable resource
-type ResourceStream interface {
-	Read(p []byte) (n int, err error)
-	Close() error
-	ContentType() string
-	Size() int64
-}
 
 // Peer represents a network peer
 type Peer struct {

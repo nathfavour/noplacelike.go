@@ -312,6 +312,8 @@ func (s *simpleResource) GetMetadata() map[string]interface{} {
 }
 func (s *simpleResource) GetSize() int64  { return 0 }
 func (s *simpleResource) GetType() string { return "simple" }
+func (s *simpleResource) ID() string      { return s.name }
+func (s *simpleResource) Type() string    { return "simple" }
 
 // Fix GetResource to return a valid Resource instead of nil
 func (r *resourceManager) GetResource(ctx context.Context, name string) (Resource, error) {
