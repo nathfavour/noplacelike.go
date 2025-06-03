@@ -143,7 +143,7 @@ type MetricsConfig struct {
 }
 
 // NewPlatform creates a new platform instance
-func NewPlatform(config *PlatformConfig) (*Platform, error) {
+func NewPlatform(config *PlatformConfig, logger core.Logger) (*Platform, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	p := &Platform{
@@ -153,14 +153,11 @@ func NewPlatform(config *PlatformConfig) (*Platform, error) {
 		pluginDeps: make(map[string][]string),
 		version:    config.Version,
 		buildInfo:  getBuildInfo(),
+		logger:     logger,
 	}
 
 	// Initialize core managers (implementations would be in separate files)
 	var err error
-
-	if p.logger, err = NewLogger(config.Logging); err != nil {
-		return nil, fmt.Errorf("failed to initialize logger: %w", err)
-	}
 
 	if p.configManager, err = NewConfigManager(config); err != nil {
 		return nil, fmt.Errorf("failed to initialize config manager: %w", err)

@@ -46,10 +46,14 @@ func main() {
 	platformConfig := convertLegacyConfig(legacy)
 
 	// Initialize platform
-	p, err := platform.NewPlatform(*platformConfig, log)
+	p, err := platform.NewPlatform(platformConfig, log)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to initialize platform: %v\n", err)
 		os.Exit(1)
+	}
+	// Set logger if method exists
+	if setter, ok := interface{}(p).(interface{ SetLogger(core.Logger) }); ok {
+		setter.SetLogger(log)
 	}
 
 	// Display QR codes and access info first
