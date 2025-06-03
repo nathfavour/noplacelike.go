@@ -529,24 +529,58 @@ func getBuildInfo() BuildInfo {
 
 // Placeholder functions for manager creation (these would be implemented in separate files)
 func NewLogger(config LoggingConfig) (core.Logger, error) { return nil, fmt.Errorf("not implemented") }
+
+// Minimal stub config manager
+
+type stubConfigManager struct{}
+
+// Implement core.ConfigManager methods as no-ops or defaults
+// Add more methods if your interface requires them
+
+func (s *stubConfigManager) Reload() error                     { return nil }
+func (s *stubConfigManager) Save() error                       { return nil }
+func (s *stubConfigManager) Get(key string) interface{}        { return nil }
+func (s *stubConfigManager) Set(key string, value interface{}) {}
+
 func NewConfigManager(config *PlatformConfig) (core.ConfigManager, error) {
-	return nil, fmt.Errorf("not implemented")
+	return &stubConfigManager{}, nil
 }
+
 func NewEventBus(logger core.Logger) (core.EventBus, error) {
-	return nil, fmt.Errorf("not implemented")
+	// return nil, fmt.Errorf("not implemented")
+	// let's implement (for no reason lol) a minimal stub struct
+	// this stub struct will implement the core.EventBus interface
+	return &struct {
+		core.EventBus
+	}{}, nil
 }
 func NewMetricsCollector(config MetricsConfig, logger core.Logger) (core.MetricsCollector, error) {
-	return nil, fmt.Errorf("not implemented")
+	return &struct {
+		core.MetricsCollector
+	}{}, nil
 }
 func NewSecurityManager(config SecurityConfig, logger core.Logger) (core.SecurityManager, error) {
-	return nil, fmt.Errorf("not implemented")
+	return &struct {
+		core.SecurityManager
+	}{}, nil
 }
 func NewNetworkManager(config NetworkConfig, security core.SecurityManager, eventBus core.EventBus, logger core.Logger) (core.NetworkManager, error) {
-	return nil, fmt.Errorf("not implemented")
+	return &struct {
+		core.NetworkManager
+	}{}, nil
 }
 func NewResourceManager(network core.NetworkManager, security core.SecurityManager, eventBus core.EventBus, logger core.Logger) (core.ResourceManager, error) {
-	return nil, fmt.Errorf("not implemented")
+	return &struct {
+		core.ResourceManager
+	}{}, nil
 }
 func NewServiceManager(eventBus core.EventBus, logger core.Logger) (core.ServiceManager, error) {
-	return nil, fmt.Errorf("not implemented")
+	return &struct {
+		core.ServiceManager
+	}{}, nil
 }
+
+// func NewEventBus(logger core.Logger) (core.EventBus, error) {
+// 	// return nothing for now haha
+// 	return nil, fmt.Errorf("not implemented yet lol")
+// }
