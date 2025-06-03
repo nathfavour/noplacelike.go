@@ -16,6 +16,7 @@ import (
 	"github.com/nathfavour/noplacelike.go/internal/platform"
 	"github.com/nathfavour/noplacelike.go/internal/plugins"
 	"github.com/nathfavour/noplacelike.go/internal/services"
+	"github.com/nathfavour/noplacelike.go/server"
 )
 
 var (
@@ -178,13 +179,12 @@ func startHTTPService(ctx context.Context, p *platform.Platform, legacy *config.
 
 // displayAccessInfo shows connection information
 func displayAccessInfo(host string, port int) {
+	// Print QR codes and network URLs first
+	server.DisplayAccessInfo(host, port)
+
+	// Then print the rest of the CLI output
 	fmt.Printf("\n")
 	fmt.Printf("🚀 NoPlaceLike Platform Started Successfully!\n")
-	fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
-	fmt.Printf("\n")
-	fmt.Printf("📡 Network Information:\n")
-	fmt.Printf("   • Host: %s\n", host)
-	fmt.Printf("   • Port: %d\n", port)
 	fmt.Printf("   • Local: http://localhost:%d\n", port)
 
 	if host == "0.0.0.0" {

@@ -176,16 +176,8 @@ func NewFileManagerPlugin(uploadDir, downloadDir string, maxFileSize int64) *Fil
 }
 
 // Initialize sets up the file manager plugin
-func (p *FileManagerPlugin) Initialize(ctx context.Context, config map[string]interface{}) error {
-	if err := p.BasePlugin.Initialize(ctx, config); err != nil {
-		return err
-	}
-
-	// Create directories
-	if err := p.ensureDirectories(); err != nil {
-		return fmt.Errorf("failed to create directories: %w", err)
-	}
-
+func (p *FileManagerPlugin) Initialize(platform core.PlatformAPI) error {
+	// Optionally store platform reference if needed
 	return nil
 }
 
@@ -444,16 +436,24 @@ func (p *FileManagerPlugin) ID() string {
 	return p.Name()
 }
 
+func (p *FileManagerPlugin) IsHealthy() bool {
+	return true
+}
+
 // ClipboardPlugin provides clipboard sharing capabilities
 type ClipboardPlugin struct {
 	*BasePlugin
 	clipboard  []ClipboardEntry
 	maxHistory int
-	ID         string    `json:"id"`
-	Content    string    `json:"content"`
-	Type       string    `json:"type"`
-	Source     string    `json:"source"`
-	Timestamp  time.Time `json:"timestamp"`
+}
+
+// ClipboardEntry represents a clipboard entry
+type ClipboardEntry struct {
+	ID        string    `json:"id"`
+	Content   string    `json:"content"`
+	Type      string    `json:"type"`
+	Source    string    `json:"source"`
+	Timestamp time.Time `json:"timestamp"`
 }
 
 // NewClipboardPlugin creates a new clipboard plugin
@@ -469,6 +469,11 @@ func NewClipboardPlugin(maxHistory int) *ClipboardPlugin {
 	plugin.setupRoutes()
 
 	return plugin
+}
+
+func (p *ClipboardPlugin) Initialize(platform core.PlatformAPI) error {
+	// Optionally store platform reference if needed
+	return nil
 }
 
 func (p *ClipboardPlugin) setupRoutes() {
@@ -597,6 +602,14 @@ func (p *ClipboardPlugin) HandleEvent(event core.Event) error {
 	return nil
 }
 
+func (p *ClipboardPlugin) ID() string {
+	return p.Name()
+}
+
+func (p *ClipboardPlugin) IsHealthy() bool {
+	return true
+}
+
 // SystemInfoPlugin provides system information
 type SystemInfoPlugin struct {
 	*BasePlugin
@@ -613,6 +626,11 @@ func NewSystemInfoPlugin() *SystemInfoPlugin {
 	plugin.setupRoutes()
 
 	return plugin
+}
+
+func (p *SystemInfoPlugin) Initialize(platform core.PlatformAPI) error {
+	// Optionally store platform reference if needed
+	return nil
 }
 
 func (p *SystemInfoPlugin) setupRoutes() {
@@ -670,6 +688,14 @@ func (p *SystemInfoPlugin) Configure(config map[string]interface{}) error {
 
 func (p *SystemInfoPlugin) HandleEvent(event core.Event) error {
 	return nil
+}
+
+func (p *SystemInfoPlugin) ID() string {
+	return p.Name()
+}
+
+func (p *SystemInfoPlugin) IsHealthy() bool {
+	return true
 }
 
 // Helper functions (these would be properly implemented)
