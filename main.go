@@ -185,14 +185,7 @@ func displayAccessInfo(host string, port int) {
 	// Then print the rest of the CLI output
 	fmt.Printf("\n")
 	fmt.Printf("🚀 NoPlaceLike Platform Started Successfully!\n")
-	fmt.Printf("   • Local: http://localhost:%d\n", port)
-
-	if host == "0.0.0.0" {
-		fmt.Printf("   • Network: http://<your-ip>:%d\n", port)
-	} else {
-		fmt.Printf("   • Network: http://%s:%d\n", host, port)
-	}
-
+	fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
 	fmt.Printf("\n")
 	fmt.Printf("🛠️  API Endpoints:\n")
 	fmt.Printf("   • Platform Health: /health\n")
