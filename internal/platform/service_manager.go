@@ -6,3 +6,5 @@ type Service interface {
 	Start() error
 	Stop() error
 }
+
+// This file is intentionally left blank. NewServiceManager is defined in platform.go.
