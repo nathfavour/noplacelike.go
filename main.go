@@ -9,7 +9,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/nathfavour/noplacelike.go/cmd"
 	"github.com/nathfavour/noplacelike.go/config"
 	"github.com/nathfavour/noplacelike.go/internal/core"
 	"github.com/nathfavour/noplacelike.go/internal/logger"
@@ -33,6 +32,60 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// Set build info
+	core.SetBuildInfo(Version, BuildTime, GitCommit)
+
+	// Load legacy config
+	legacy, err := config.Load()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to load config: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Convert legacy config to platform config
+	platformConfig := convertLegacyConfig(legacy)
+
+	// Initialize platform
+	p, err := platform.NewPlatform(*platformConfig, log)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to initialize platform: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Display QR codes and access info first
+	displayAccessInfo(legacy.Host, legacy.Port)
+
+	// Load core plugins
+	if err := loadCorePlugins(ctx, p, legacy); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to load core plugins: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Start HTTP service and keep reference for shutdown
+	httpConfig := services.HTTPConfig{
+		Host:           legacy.Host,
+		Port:           legacy.Port,
+		EnableTLS:      false,
+		ReadTimeout:    30 * time.Second,
+		WriteTimeout:   30 * time.Second,
+		IdleTimeout:    120 * time.Second,
+		MaxRequestSize: int64(legacy.MaxFileContentSize),
+		EnableCORS:     true,
+		EnableMetrics:  true,
+		EnableDocs:     true,
+		RateLimitRPS:   100,
+		EnableGzip:     true,
+	}
+	httpService := services.NewHTTPService(httpConfig, p)
+	if err := p.ServiceManager().RegisterService(httpService); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to register HTTP service: %v\n", err)
+		os.Exit(1)
+	}
+	if err := httpService.Start(ctx); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to start HTTP service: %v\n", err)
+		os.Exit(1)
+	}
+
 	// Handle graceful shutdown
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
@@ -40,17 +93,13 @@ func main() {
 	go func() {
 		<-sigChan
 		log.Info("Received shutdown signal, gracefully shutting down...")
-		cancel()
+		// Stop HTTP service
+		httpService.Stop(context.Background())
+		os.Exit(0)
 	}()
 
-	// Set build info
-	core.SetBuildInfo(Version, BuildTime, GitCommit)
-
-	// Execute command
-	if err := cmd.Execute(ctx); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
-	}
+	// Block main goroutine until context is cancelled
+	<-ctx.Done()
 }
 
 // convertLegacyConfig converts legacy config to new platform config
