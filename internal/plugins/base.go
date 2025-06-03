@@ -428,20 +428,32 @@ func (p *FileManagerPlugin) sanitizeFilename(filename string) string {
 	return replacer.Replace(filename)
 }
 
+func (p *FileManagerPlugin) Configuration() core.ConfigSchema {
+	return core.ConfigSchema{}
+}
+
+func (p *FileManagerPlugin) Configure(config map[string]interface{}) error {
+	return nil
+}
+
+func (p *FileManagerPlugin) HandleEvent(event core.Event) error {
+	return nil
+}
+
+func (p *FileManagerPlugin) ID() string {
+	return p.Name()
+}
+
 // ClipboardPlugin provides clipboard sharing capabilities
 type ClipboardPlugin struct {
 	*BasePlugin
 	clipboard  []ClipboardEntry
 	maxHistory int
-}
-
-// ClipboardEntry represents a clipboard entry
-type ClipboardEntry struct {
-	ID        string    `json:"id"`
-	Content   string    `json:"content"`
-	Type      string    `json:"type"`
-	Source    string    `json:"source"`
-	Timestamp time.Time `json:"timestamp"`
+	ID         string    `json:"id"`
+	Content    string    `json:"content"`
+	Type       string    `json:"type"`
+	Source     string    `json:"source"`
+	Timestamp  time.Time `json:"timestamp"`
 }
 
 // NewClipboardPlugin creates a new clipboard plugin
@@ -573,6 +585,18 @@ func (p *ClipboardPlugin) handleClearHistory(w http.ResponseWriter, r *http.Requ
 	json.NewEncoder(w).Encode(response)
 }
 
+func (p *ClipboardPlugin) Configuration() core.ConfigSchema {
+	return core.ConfigSchema{}
+}
+
+func (p *ClipboardPlugin) Configure(config map[string]interface{}) error {
+	return nil
+}
+
+func (p *ClipboardPlugin) HandleEvent(event core.Event) error {
+	return nil
+}
+
 // SystemInfoPlugin provides system information
 type SystemInfoPlugin struct {
 	*BasePlugin
@@ -634,6 +658,18 @@ func (p *SystemInfoPlugin) handleSystemHealth(w http.ResponseWriter, r *http.Req
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(health)
+}
+
+func (p *SystemInfoPlugin) Configuration() core.ConfigSchema {
+	return core.ConfigSchema{}
+}
+
+func (p *SystemInfoPlugin) Configure(config map[string]interface{}) error {
+	return nil
+}
+
+func (p *SystemInfoPlugin) HandleEvent(event core.Event) error {
+	return nil
 }
 
 // Helper functions (these would be properly implemented)

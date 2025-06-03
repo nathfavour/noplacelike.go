@@ -153,6 +153,13 @@ func (s *HTTPService) Health() core.HealthStatus {
 	}
 }
 
+// IsHealthy returns true if the HTTP service is running
+func (s *HTTPService) IsHealthy() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.started
+}
+
 // Configuration returns the service configuration schema
 func (s *HTTPService) Configuration() core.ConfigSchema {
 	return core.ConfigSchema{

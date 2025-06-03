@@ -171,7 +171,9 @@ func startHTTPService(ctx context.Context, p *platform.Platform, legacy *config.
 
 	httpService := services.NewHTTPService(httpConfig, p)
 
-	return p.ServiceManager().RegisterService("http", httpService)
+	err := p.ServiceManager().RegisterService(httpService)
+
+	return err
 }
 
 // displayAccessInfo shows connection information
