@@ -59,13 +59,13 @@ func main() {
 	// Display QR codes and access info first
 	displayAccessInfo(legacy.Host, legacy.Port)
 
-	// Load core plugins
+	// Load core plugins BEFORE starting platform so HTTP routes can register them
 	if err := loadCorePlugins(ctx, p, legacy); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to load core plugins: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Start HTTP service and keep reference for shutdown
+	// Register HTTP service (platform will start it)
 	httpConfig := services.HTTPConfig{
 		Host:           legacy.Host,
 		Port:           legacy.Port,
@@ -85,10 +85,17 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Failed to register HTTP service: %v\n", err)
 		os.Exit(1)
 	}
-	if err := httpService.Start(ctx); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to start HTTP service: %v\n", err)
+
+	// Start the platform (starts all registered services)
+	if err := p.Start(ctx); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to start platform: %v\n", err)
 		os.Exit(1)
 	}
+
+	// Plugins are preloaded before platform start; nothing to do here
+
+	// Register a sample in-memory resource to make the resources API functional out of the box
+	registerSampleResource(p)
 
 	// Handle graceful shutdown
 	sigChan := make(chan os.Signal, 1)
@@ -97,8 +104,8 @@ func main() {
 	go func() {
 		<-sigChan
 		log.Info("Received shutdown signal, gracefully shutting down...")
-		// Stop HTTP service
-		httpService.Stop(context.Background())
+		// Stop the platform (stops all services/plugins)
+		_ = p.Stop(context.Background())
 		os.Exit(0)
 	}()
 
@@ -268,4 +275,49 @@ func displayAccessInfo(host string, port int) {
 	fmt.Printf("\n")
 	fmt.Printf("Press Ctrl+C to stop the platform\n")
 	fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+}
+
+// memoryResource is a simple in-memory core.Resource implementation
+type memoryResource struct {
+	id       string
+	typ      string
+	data     []byte
+	meta     map[string]interface{}
+	started  bool
+}
+
+// Service interface methods
+func (m *memoryResource) Start(ctx context.Context) error {
+	m.started = true
+	return nil
+}
+func (m *memoryResource) Stop(ctx context.Context) error {
+	m.started = false
+	return nil
+}
+func (m *memoryResource) IsHealthy() bool { return true }
+func (m *memoryResource) Name() string    { return "resource:" + m.id }
+func (m *memoryResource) Health() core.HealthStatus {
+	return core.HealthStatus{
+		Status:    core.HealthStatusHealthy,
+		Timestamp: time.Now(),
+	}
+}
+func (m *memoryResource) Configuration() core.ConfigSchema { return core.ConfigSchema{} }
+
+// Resource interface methods
+func (m *memoryResource) ID() string                         { return m.id }
+func (m *memoryResource) Type() string                       { return m.typ }
+func (m *memoryResource) GetMetadata() map[string]interface{} { return m.meta }
+func (m *memoryResource) GetSize() int64                     { return int64(len(m.data)) }
+
+// registerSampleResource registers a trivial in-memory resource
+func registerSampleResource(p *platform.Platform) {
+	res := &memoryResource{
+		id:   "mem-hello",
+		typ:  "memory",
+		data: []byte("hello"),
+		meta: map[string]interface{}{"name": "hello"},
+	}
+	_ = p.ResourceManager().RegisterResource(res)
 }

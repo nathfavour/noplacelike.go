@@ -546,38 +546,635 @@ func NewConfigManager(config *PlatformConfig) (core.ConfigManager, error) {
 	return &stubConfigManager{}, nil
 }
 
+// --- Implementations for core managers and services ---
+
+// EventBus implementation
+type eventBusImpl struct {
+	mu      sync.RWMutex
+	subs    map[string][]func(context.Context, core.Event) error
+	started bool
+	logger  core.Logger
+}
+
+func (e *eventBusImpl) Name() string { return "event-bus" }
+
+func (e *eventBusImpl) Start(ctx context.Context) error {
+	e.mu.Lock()
+	e.started = true
+	if e.subs == nil {
+		e.subs = make(map[string][]func(context.Context, core.Event) error)
+	}
+	e.mu.Unlock()
+	return nil
+}
+
+func (e *eventBusImpl) Stop(ctx context.Context) error {
+	e.mu.Lock()
+	e.started = false
+	e.mu.Unlock()
+	return nil
+}
+
+func (e *eventBusImpl) IsHealthy() bool {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.started
+}
+
+func (e *eventBusImpl) Health() core.HealthStatus {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	status := core.HealthStatusHealthy
+	if !e.started {
+		status = core.HealthStatusUnhealthy
+	}
+	return core.HealthStatus{
+		Status:    status,
+		Timestamp: time.Now(),
+	}
+}
+
+func (e *eventBusImpl) Configuration() core.ConfigSchema {
+	return core.ConfigSchema{Properties: map[string]core.PropertySchema{}}
+}
+
+func (e *eventBusImpl) Publish(event core.Event) error {
+	e.mu.RLock()
+	handlers := append([]func(context.Context, core.Event) error{}, e.subs[event.Type]...)
+	starHandlers := append([]func(context.Context, core.Event) error{}, e.subs["*"]...)
+	e.mu.RUnlock()
+
+	for _, h := range handlers {
+		_ = h(context.Background(), event)
+	}
+	for _, h := range starHandlers {
+		_ = h(context.Background(), event)
+	}
+	return nil
+}
+
+func (e *eventBusImpl) PublishToTopic(ctx context.Context, topic string, event core.Event) error {
+	// Treat topic as event type channel
+	e.mu.RLock()
+	handlers := append([]func(context.Context, core.Event) error{}, e.subs[topic]...)
+	starHandlers := append([]func(context.Context, core.Event) error{}, e.subs["*"]...)
+	e.mu.RUnlock()
+
+	for _, h := range handlers {
+		_ = h(ctx, event)
+	}
+	for _, h := range starHandlers {
+		_ = h(ctx, event)
+	}
+	return nil
+}
+
+func (e *eventBusImpl) Subscribe(eventType string, handler core.EventHandler) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.subs == nil {
+		e.subs = make(map[string][]func(context.Context, core.Event) error)
+	}
+	wrapped := func(ctx context.Context, ev core.Event) error { return handler(ev) }
+	e.subs[eventType] = append(e.subs[eventType], wrapped)
+	return nil
+}
+
+func (e *eventBusImpl) SubscribeWithContext(ctx context.Context, eventType string, handler func(context.Context, core.Event) error) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.subs == nil {
+		e.subs = make(map[string][]func(context.Context, core.Event) error)
+	}
+	e.subs[eventType] = append(e.subs[eventType], handler)
+	return nil
+}
+
+func (e *eventBusImpl) Unsubscribe(eventType string, handler core.EventHandler) error {
+	// Minimal implementation: clear all subscribers for the eventType
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	delete(e.subs, eventType)
+	return nil
+}
+
+// Metrics implementation
+type counterImpl struct {
+	mu    sync.RWMutex
+	value float64
+}
+
+func (c *counterImpl) Inc()               { c.Add(1) }
+func (c *counterImpl) Add(delta float64)  { c.mu.Lock(); c.value += delta; c.mu.Unlock() }
+func (c *counterImpl) Get() float64       { c.mu.RLock(); defer c.mu.RUnlock(); return c.value }
+
+type gaugeImpl struct {
+	mu    sync.RWMutex
+	value float64
+}
+
+func (g *gaugeImpl) Set(v float64)        { g.mu.Lock(); g.value = v; g.mu.Unlock() }
+func (g *gaugeImpl) Inc()                 { g.Add(1) }
+func (g *gaugeImpl) Dec()                 { g.Add(-1) }
+func (g *gaugeImpl) Add(delta float64)    { g.mu.Lock(); g.value += delta; g.mu.Unlock() }
+func (g *gaugeImpl) Sub(delta float64)    { g.Add(-delta) }
+func (g *gaugeImpl) Get() float64         { g.mu.RLock(); defer g.mu.RUnlock(); return g.value }
+
+type histogramImpl struct {
+	mu      sync.RWMutex
+	values  []float64
+}
+
+func (h *histogramImpl) Observe(v float64) { h.mu.Lock(); h.values = append(h.values, v); h.mu.Unlock() }
+func (h *histogramImpl) Reset()            { h.mu.Lock(); h.values = nil; h.mu.Unlock() }
+
+type timerInstanceImpl struct {
+	start time.Time
+	rec   func(duration time.Duration)
+}
+
+func (t *timerInstanceImpl) Stop() {
+	if t.rec != nil {
+		t.rec(time.Since(t.start))
+	}
+}
+
+type timerImpl struct {
+	h *histogramImpl
+}
+
+func (t *timerImpl) Start() core.TimerInstance {
+	return &timerInstanceImpl{
+		start: time.Now(),
+		rec: func(d time.Duration) {
+			if t.h != nil {
+				t.h.Observe(float64(d) / float64(time.Millisecond))
+			}
+		},
+	}
+}
+func (t *timerImpl) Observe(duration float64) {
+	if t.h != nil {
+		t.h.Observe(duration)
+	}
+}
+
+type metricsCollectorImpl struct {
+	mu         sync.RWMutex
+	started    bool
+	logger     core.Logger
+	counters   map[string]*counterImpl
+	gauges     map[string]*gaugeImpl
+	histograms map[string]*histogramImpl
+	timers     map[string]*timerImpl
+}
+
+func (m *metricsCollectorImpl) Name() string { return "metrics" }
+func (m *metricsCollectorImpl) Start(ctx context.Context) error {
+	m.mu.Lock()
+	m.started = true
+	if m.counters == nil {
+		m.counters = map[string]*counterImpl{}
+	}
+	if m.gauges == nil {
+		m.gauges = map[string]*gaugeImpl{}
+	}
+	if m.histograms == nil {
+		m.histograms = map[string]*histogramImpl{}
+	}
+	if m.timers == nil {
+		m.timers = map[string]*timerImpl{}
+	}
+	m.mu.Unlock()
+	return nil
+}
+func (m *metricsCollectorImpl) Stop(ctx context.Context) error {
+	m.mu.Lock()
+	m.started = false
+	m.mu.Unlock()
+	return nil
+}
+func (m *metricsCollectorImpl) IsHealthy() bool {
+	m.mu.RLock(); defer m.mu.RUnlock()
+	return m.started
+}
+func (m *metricsCollectorImpl) Health() core.HealthStatus {
+	m.mu.RLock(); defer m.mu.RUnlock()
+	status := core.HealthStatusHealthy
+	if !m.started { status = core.HealthStatusUnhealthy }
+	return core.HealthStatus{ Status: status, Timestamp: time.Now() }
+}
+func (m *metricsCollectorImpl) Configuration() core.ConfigSchema {
+	return core.ConfigSchema{Properties: map[string]core.PropertySchema{}}
+}
+func (m *metricsCollectorImpl) Counter(name string) core.Counter {
+	m.mu.Lock(); defer m.mu.Unlock()
+	if c, ok := m.counters[name]; ok { return c }
+	c := &counterImpl{}
+	m.counters[name] = c
+	return c
+}
+func (m *metricsCollectorImpl) Gauge(name string) core.Gauge {
+	m.mu.Lock(); defer m.mu.Unlock()
+	if g, ok := m.gauges[name]; ok { return g }
+	g := &gaugeImpl{}
+	m.gauges[name] = g
+	return g
+}
+func (m *metricsCollectorImpl) Histogram(name string) core.Histogram {
+	m.mu.Lock(); defer m.mu.Unlock()
+	if h, ok := m.histograms[name]; ok { return h }
+	h := &histogramImpl{}
+	m.histograms[name] = h
+	return h
+}
+func (m *metricsCollectorImpl) Timer(name string) core.Timer {
+	m.mu.Lock(); defer m.mu.Unlock()
+	if t, ok := m.timers[name]; ok { return t }
+	h := &histogramImpl{}
+	t := &timerImpl{h: h}
+	m.histograms[name+"_duration_ms"] = h
+	m.timers[name] = t
+	return t
+}
+func (m *metricsCollectorImpl) Export(format string) ([]byte, error) {
+	// Minimal text/JSON-like export without extra imports
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if format == "json" {
+		// Build a simple JSON string
+		s := "{"
+		// counters
+		s += "\"counters\":{"
+		first := true
+		for k, v := range m.counters {
+			if !first { s += "," } ; first = false
+			s += fmt.Sprintf("%q:%v", k, v.Get())
+		}
+		s += "},"
+		// gauges
+		s += "\"gauges\":{"
+		first = true
+		for k, v := range m.gauges {
+			if !first { s += "," } ; first = false
+			s += fmt.Sprintf("%q:%v", k, v.Get())
+		}
+		s += "},"
+		// histograms (export count only)
+		s += "\"histograms\":{"
+		first = true
+		for k, v := range m.histograms {
+			if !first { s += "," } ; first = false
+			count := 0
+			if v.values != nil { count = len(v.values) }
+			s += fmt.Sprintf("%q:{\"count\":%d}", k, count)
+		}
+		s += "}"
+		s += "}"
+		return []byte(s), nil
+	}
+
+	// Plain text
+	out := "metrics:\n"
+	out += " counters:\n"
+	for k, v := range m.counters {
+		out += fmt.Sprintf("  - %s=%v\n", k, v.Get())
+	}
+	out += " gauges:\n"
+	for k, v := range m.gauges {
+		out += fmt.Sprintf("  - %s=%v\n", k, v.Get())
+	}
+	out += " histograms:\n"
+	for k, v := range m.histograms {
+		count := 0
+		if v.values != nil { count = len(v.values) }
+		out += fmt.Sprintf("  - %s count=%d\n", k, count)
+	}
+	return []byte(out), nil
+}
+
+// Security manager implementation
+type securityManagerImpl struct {
+	mu          sync.RWMutex
+	started     bool
+	logger      core.Logger
+	tokenExpiry time.Duration
+}
+
+func (s *securityManagerImpl) Name() string { return "security" }
+func (s *securityManagerImpl) Start(ctx context.Context) error { s.mu.Lock(); s.started = true; s.mu.Unlock(); return nil }
+func (s *securityManagerImpl) Stop(ctx context.Context) error  { s.mu.Lock(); s.started = false; s.mu.Unlock(); return nil }
+func (s *securityManagerImpl) IsHealthy() bool { s.mu.RLock(); defer s.mu.RUnlock(); return s.started }
+func (s *securityManagerImpl) Health() core.HealthStatus {
+	s.mu.RLock(); defer s.mu.RUnlock()
+	status := core.HealthStatusHealthy
+	if !s.started { status = core.HealthStatusUnhealthy }
+	return core.HealthStatus{ Status: status, Timestamp: time.Now() }
+}
+func (s *securityManagerImpl) Configuration() core.ConfigSchema {
+	return core.ConfigSchema{Properties: map[string]core.PropertySchema{}}
+}
+
+func (s *securityManagerImpl) Authenticate(token string) (*core.User, error) {
+	if token == "" {
+		return nil, fmt.Errorf("empty token")
+	}
+	return &core.User{ID: token, Username: token, CreatedAt: time.Now().Unix()}, nil
+}
+
+func (s *securityManagerImpl) Authorize(user *core.User, resource string, action string) bool {
+	// Minimal implementation: allow all
+	_ = user
+	_ = resource
+	_ = action
+	return true
+}
+
+func (s *securityManagerImpl) GenerateToken(user *core.User) (string, error) {
+	if user == nil || user.ID == "" {
+		return "", fmt.Errorf("invalid user")
+	}
+	return fmt.Sprintf("token-%s", user.ID), nil
+}
+
+func (s *securityManagerImpl) ValidatePermissions(userID string, permissions []string) bool {
+	_ = userID
+	_ = permissions
+	return true
+}
+
+func (s *securityManagerImpl) ValidateToken(ctx context.Context, token string) (*core.TokenInfo, error) {
+	if token == "" {
+		return &core.TokenInfo{Valid: false}, nil
+	}
+	// Minimal validation: any non-empty token is valid
+	return &core.TokenInfo{
+		Valid:       true,
+		UserID:      token,
+		Permissions: []string{},
+		PeerID:      token,
+		ExpireAt:    time.Now().Add(24 * time.Hour).Unix(),
+	}, nil
+}
+
+// Network manager implementation
+type networkManagerImpl struct {
+	mu      sync.RWMutex
+	started bool
+	logger  core.Logger
+	peers   map[string]core.Peer
+}
+
+func (n *networkManagerImpl) Name() string { return "network" }
+func (n *networkManagerImpl) Start(ctx context.Context) error { n.mu.Lock(); n.started = true; if n.peers == nil { n.peers = map[string]core.Peer{} }; n.mu.Unlock(); return nil }
+func (n *networkManagerImpl) Stop(ctx context.Context) error  { n.mu.Lock(); n.started = false; n.mu.Unlock(); return nil }
+func (n *networkManagerImpl) IsHealthy() bool { n.mu.RLock(); defer n.mu.RUnlock(); return n.started }
+func (n *networkManagerImpl) Health() core.HealthStatus {
+	n.mu.RLock(); defer n.mu.RUnlock()
+	status := core.HealthStatusHealthy
+	if !n.started { status = core.HealthStatusUnhealthy }
+	return core.HealthStatus{ Status: status, Timestamp: time.Now() }
+}
+func (n *networkManagerImpl) Configuration() core.ConfigSchema {
+	return core.ConfigSchema{Properties: map[string]core.PropertySchema{}}
+}
+
+func (n *networkManagerImpl) DiscoverPeers() ([]core.Peer, error) {
+	return n.GetPeers(), nil
+}
+func (n *networkManagerImpl) GetPeers() []core.Peer {
+	n.mu.RLock(); defer n.mu.RUnlock()
+	out := make([]core.Peer, 0, len(n.peers))
+	for _, p := range n.peers {
+		out = append(out, p)
+	}
+	return out
+}
+func (n *networkManagerImpl) ConnectToPeer(address string) (core.Peer, error) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.peers == nil {
+		n.peers = map[string]core.Peer{}
+	}
+	id := fmt.Sprintf("peer-%d", time.Now().UnixNano())
+	p := core.Peer{
+		ID:       id,
+		Address:  address,
+		Name:     address,
+		Status:   "connected",
+		Metadata: map[string]interface{}{},
+		LastSeen: time.Now().Unix(),
+	}
+	n.peers[id] = p
+	return p, nil
+}
+func (n *networkManagerImpl) ListPeers() []core.Peer { return n.GetPeers() }
+func (n *networkManagerImpl) SendMessage(peerID string, message []byte) error { _ = peerID; _ = message; return nil }
+func (n *networkManagerImpl) BroadcastMessage(message []byte) error { _ = message; return nil }
+
+// Resource manager implementation
+type resourceManagerImpl struct {
+	mu        sync.RWMutex
+	started   bool
+	logger    core.Logger
+	eventBus  core.EventBus
+	resources map[string]core.Resource
+}
+
+func (r *resourceManagerImpl) Name() string { return "resources" }
+func (r *resourceManagerImpl) Start(ctx context.Context) error { r.mu.Lock(); r.started = true; if r.resources == nil { r.resources = map[string]core.Resource{} }; r.mu.Unlock(); return nil }
+func (r *resourceManagerImpl) Stop(ctx context.Context) error  { r.mu.Lock(); r.started = false; r.mu.Unlock(); return nil }
+func (r *resourceManagerImpl) IsHealthy() bool { r.mu.RLock(); defer r.mu.RUnlock(); return r.started }
+func (r *resourceManagerImpl) Health() core.HealthStatus {
+	r.mu.RLock(); defer r.mu.RUnlock()
+	status := core.HealthStatusHealthy
+	if !r.started { status = core.HealthStatusUnhealthy }
+	return core.HealthStatus{ Status: status, Timestamp: time.Now() }
+}
+func (r *resourceManagerImpl) Configuration() core.ConfigSchema {
+	return core.ConfigSchema{Properties: map[string]core.PropertySchema{}}
+}
+
+func (r *resourceManagerImpl) RegisterResource(resource core.Resource) error {
+	if resource == nil || resource.ID() == "" {
+		return fmt.Errorf("invalid resource")
+	}
+	r.mu.Lock()
+	r.resources[resource.ID()] = resource
+	r.mu.Unlock()
+	return nil
+}
+
+func (r *resourceManagerImpl) UnregisterResource(id string) error {
+	r.mu.Lock()
+	delete(r.resources, id)
+	r.mu.Unlock()
+	return nil
+}
+
+func (r *resourceManagerImpl) GetResource(ctx context.Context, id string) (core.Resource, error) {
+	r.mu.RLock()
+	res, ok := r.resources[id]
+	r.mu.RUnlock()
+	if !ok {
+		return nil, fmt.Errorf("resource not found")
+	}
+	return res, nil
+}
+
+func (r *resourceManagerImpl) ListResources(ctx context.Context, filter core.ResourceFilter) ([]core.Resource, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := make([]core.Resource, 0, len(r.resources))
+	for _, res := range r.resources {
+		if filter.Type != "" && res.Type() != filter.Type {
+			continue
+		}
+		if filter.Name != "" {
+			if name, ok := res.GetMetadata()["name"].(string); ok {
+				if name != filter.Name {
+					continue
+				}
+			}
+		}
+		out = append(out, res)
+	}
+	return out, nil
+}
+
+type memoryResourceStream struct {
+	sent bool
+}
+
+func (m *memoryResourceStream) Read() ([]byte, error) {
+	if m.sent {
+		return nil, fmt.Errorf("eof")
+	}
+	m.sent = true
+	return []byte("stream not available for this resource"), nil
+}
+
+func (m *memoryResourceStream) Close() error { return nil }
+
+func (r *resourceManagerImpl) StreamResource(ctx context.Context, id string) (core.ResourceStream, error) {
+	// Minimal streaming: return a single-chunk stream
+	if _, err := r.GetResource(ctx, id); err != nil {
+		return nil, err
+	}
+	return &memoryResourceStream{}, nil
+}
+
+// Service manager implementation
+type serviceManagerImpl struct {
+	mu       sync.RWMutex
+	services map[string]core.Service
+}
+
+func (s *serviceManagerImpl) StartAll(ctx context.Context) error {
+	s.mu.RLock()
+	services := make([]core.Service, 0, len(s.services))
+	for _, svc := range s.services {
+		services = append(services, svc)
+	}
+	s.mu.RUnlock()
+	for _, svc := range services {
+		if err := svc.Start(ctx); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *serviceManagerImpl) StopAll(ctx context.Context) error {
+	s.mu.RLock()
+	services := make([]core.Service, 0, len(s.services))
+	for _, svc := range s.services {
+		services = append(services, svc)
+	}
+	s.mu.RUnlock()
+	for _, svc := range services {
+		if err := svc.Stop(ctx); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *serviceManagerImpl) HealthCheck() map[string]core.HealthStatus {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := map[string]core.HealthStatus{}
+	for name, svc := range s.services {
+		out[name] = svc.Health()
+	}
+	return out
+}
+
+func (s *serviceManagerImpl) GetService(name string) (core.Service, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if svc, ok := s.services[name]; ok {
+		return svc, nil
+	}
+	return nil, fmt.Errorf("service %s not found", name)
+}
+
+func (s *serviceManagerImpl) Configuration() core.ConfigSchema {
+	return core.ConfigSchema{Properties: map[string]core.PropertySchema{}}
+}
+
+func (s *serviceManagerImpl) RegisterService(service core.Service) error {
+	if service == nil || service.Name() == "" {
+		return fmt.Errorf("invalid service")
+	}
+	s.mu.Lock()
+	if s.services == nil {
+		s.services = map[string]core.Service{}
+	}
+	s.services[service.Name()] = service
+	s.mu.Unlock()
+	return nil
+}
+
 func NewEventBus(logger core.Logger) (core.EventBus, error) {
-	// return nil, fmt.Errorf("not implemented")
-	// let's implement (for no reason lol) a minimal stub struct
-	// this stub struct will implement the core.EventBus interface
-	return &struct {
-		core.EventBus
-	}{}, nil
+	return &eventBusImpl{
+		logger: logger,
+		subs:   map[string][]func(context.Context, core.Event) error{},
+	}, nil
 }
 func NewMetricsCollector(config MetricsConfig, logger core.Logger) (core.MetricsCollector, error) {
-	return &struct {
-		core.MetricsCollector
-	}{}, nil
+	return &metricsCollectorImpl{
+		logger:     logger,
+		counters:   map[string]*counterImpl{},
+		gauges:     map[string]*gaugeImpl{},
+		histograms: map[string]*histogramImpl{},
+		timers:     map[string]*timerImpl{},
+	}, nil
 }
 func NewSecurityManager(config SecurityConfig, logger core.Logger) (core.SecurityManager, error) {
-	return &struct {
-		core.SecurityManager
-	}{}, nil
+	return &securityManagerImpl{
+		logger:      logger,
+		tokenExpiry: config.TokenExpiry,
+	}, nil
 }
 func NewNetworkManager(config NetworkConfig, security core.SecurityManager, eventBus core.EventBus, logger core.Logger) (core.NetworkManager, error) {
-	return &struct {
-		core.NetworkManager
-	}{}, nil
+	return &networkManagerImpl{
+		logger: logger,
+		peers:  map[string]core.Peer{},
+	}, nil
 }
 func NewResourceManager(network core.NetworkManager, security core.SecurityManager, eventBus core.EventBus, logger core.Logger) (core.ResourceManager, error) {
-	return &struct {
-		core.ResourceManager
-	}{}, nil
+	return &resourceManagerImpl{
+		logger:    logger,
+		eventBus:  eventBus,
+		resources: map[string]core.Resource{},
+	}, nil
 }
 func NewServiceManager(eventBus core.EventBus, logger core.Logger) (core.ServiceManager, error) {
-	return &struct {
-		core.ServiceManager
-	}{}, nil
+	return &serviceManagerImpl{
+		services: map[string]core.Service{},
+	}, nil
 }
 
 // func NewEventBus(logger core.Logger) (core.EventBus, error) {

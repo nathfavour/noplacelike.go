@@ -312,6 +312,29 @@ func (s *HTTPService) registerPluginRoutes() {
 }
 
 // HTTP Handlers
+// memoryResource is an in-memory implementation of core.Resource and core.Service
+type memoryResource struct {
+	id      string
+	typ     string
+	meta    map[string]interface{}
+	data    []byte
+	started bool
+}
+
+func (m *memoryResource) Start(ctx context.Context) error { m.started = true; return nil }
+func (m *memoryResource) Stop(ctx context.Context) error  { m.started = false; return nil }
+func (m *memoryResource) IsHealthy() bool                 { return true }
+func (m *memoryResource) Name() string                    { return "resource:" + m.id }
+func (m *memoryResource) Health() core.HealthStatus {
+	return core.HealthStatus{Status: core.HealthStatusHealthy, Timestamp: time.Now()}
+}
+func (m *memoryResource) Configuration() core.ConfigSchema { return core.ConfigSchema{} }
+func (m *memoryResource) ID() string                       { return m.id }
+func (m *memoryResource) Type() string                     { return m.typ }
+func (m *memoryResource) GetMetadata() map[string]interface{} { return m.meta }
+func (m *memoryResource) GetSize() int64                   { return int64(len(m.data)) }
+
+// HTTP Handlers
 func (s *HTTPService) handleRoot(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"name":    "NoPlaceLike Platform",
@@ -540,18 +563,41 @@ func (s *HTTPService) handleGetResource(c *gin.Context) {
 }
 
 func (s *HTTPService) handleCreateResource(c *gin.Context) {
-	var resource core.Resource
-	if err := c.ShouldBindJSON(&resource); err != nil {
+	var req struct {
+		ID       string                 `json:"id"`
+		Type     string                 `json:"type"`
+		Metadata map[string]interface{} `json:"metadata"`
+		Data     string                 `json:"data"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	if req.Type == "" {
+		req.Type = "memory"
+	}
+	if req.ID == "" {
+		req.ID = fmt.Sprintf("res-%d", time.Now().UnixNano())
+	}
 
-	if err := s.platform.ResourceManager().RegisterResource(resource); err != nil {
+	res := &memoryResource{
+		id:   req.ID,
+		typ:  req.Type,
+		meta: req.Metadata,
+		data: []byte(req.Data),
+	}
+
+	if err := s.platform.ResourceManager().RegisterResource(res); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusCreated, resource)
+	c.JSON(http.StatusCreated, gin.H{
+		"id":       res.ID(),
+		"type":     res.Type(),
+		"size":     res.GetSize(),
+		"metadata": res.GetMetadata(),
+	})
 }
 
 func (s *HTTPService) handleDeleteResource(c *gin.Context) {
