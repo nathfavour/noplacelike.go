@@ -742,10 +742,13 @@ func (s *HTTPService) authMiddleware(permissions []string) gin.HandlerFunc {
 			return
 		}
 
-		// Remove "Bearer " prefix
-		if len(token) > 7 && token[:7] == "Bearer " {
-			token = token[7:]
+		// Require "Bearer " prefix
+		if len(token) <= 7 || token[:7] != "Bearer " {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid authorization scheme"})
+			c.Abort()
+			return
 		}
+		token = token[7:]
 
 		// Validate token
 		tokenInfo, err := s.platform.SecurityManager().ValidateToken(c.Request.Context(), token)

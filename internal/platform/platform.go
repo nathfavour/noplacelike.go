@@ -3,7 +3,12 @@ package platform
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -97,6 +102,10 @@ type SecurityConfig struct {
 	LockoutDuration  time.Duration `json:"lockoutDuration"`
 	AllowedPeers     []string      `json:"allowedPeers"`
 	BlockedPeers     []string      `json:"blockedPeers"`
+	// JWT settings (HS256)
+	JWTSecret   string   `json:"jwtSecret"`
+	JWTIssuer   string   `json:"jwtIssuer"`
+	JWTAudience []string `json:"jwtAudience"`
 }
 
 // PerformanceConfig contains performance-related settings
@@ -871,6 +880,9 @@ type securityManagerImpl struct {
 	started     bool
 	logger      core.Logger
 	tokenExpiry time.Duration
+	secret      []byte
+	issuer      string
+	audience    []string
 }
 
 func (s *securityManagerImpl) Name() string { return "security" }
@@ -906,7 +918,48 @@ func (s *securityManagerImpl) GenerateToken(user *core.User) (string, error) {
 	if user == nil || user.ID == "" {
 		return "", fmt.Errorf("invalid user")
 	}
-	return fmt.Sprintf("token-%s", user.ID), nil
+	header := map[string]interface{}{
+		"alg": "HS256",
+		"typ": "JWT",
+	}
+	now := time.Now()
+	exp := now.Add(s.tokenExpiry)
+	claims := map[string]interface{}{
+		"sub": user.ID,
+		"iat": now.Unix(),
+		"exp": exp.Unix(),
+	}
+	if s.issuer != "" {
+		claims["iss"] = s.issuer
+	}
+	if len(s.audience) > 0 {
+		if len(s.audience) == 1 {
+			claims["aud"] = s.audience[0]
+		} else {
+			claims["aud"] = s.audience
+		}
+	}
+
+	hb, err := json.Marshal(header)
+	if err != nil {
+		return "", err
+	}
+	cb, err := json.Marshal(claims)
+	if err != nil {
+		return "", err
+	}
+
+	enc := base64.RawURLEncoding
+	h64 := enc.EncodeToString(hb)
+	c64 := enc.EncodeToString(cb)
+	signingInput := h64 + "." + c64
+
+	mac := hmac.New(sha256.New, s.secret)
+	_, _ = mac.Write([]byte(signingInput))
+	sig := mac.Sum(nil)
+	s64 := enc.EncodeToString(sig)
+
+	return signingInput + "." + s64, nil
 }
 
 func (s *securityManagerImpl) ValidatePermissions(userID string, permissions []string) bool {
@@ -919,13 +972,134 @@ func (s *securityManagerImpl) ValidateToken(ctx context.Context, token string) (
 	if token == "" {
 		return &core.TokenInfo{Valid: false}, nil
 	}
-	// Minimal validation: any non-empty token is valid
+	// Expect "header.payload.signature"
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return &core.TokenInfo{Valid: false}, nil
+	}
+
+	enc := base64.RawURLEncoding
+	headerJSON, err := enc.DecodeString(parts[0])
+	if err != nil {
+		return &core.TokenInfo{Valid: false}, nil
+	}
+	var header map[string]interface{}
+	_ = json.Unmarshal(headerJSON, &header)
+	if alg, _ := header["alg"].(string); alg != "HS256" {
+		return &core.TokenInfo{Valid: false}, nil
+	}
+
+	payloadJSON, err := enc.DecodeString(parts[1])
+	if err != nil {
+		return &core.TokenInfo{Valid: false}, nil
+	}
+
+	// Verify signature
+	signingInput := parts[0] + "." + parts[1]
+	mac := hmac.New(sha256.New, s.secret)
+	_, _ = mac.Write([]byte(signingInput))
+	expected := mac.Sum(nil)
+	sig, err := enc.DecodeString(parts[2])
+	if err != nil {
+		return &core.TokenInfo{Valid: false}, nil
+	}
+	if !hmac.Equal(sig, expected) {
+		return &core.TokenInfo{Valid: false}, nil
+	}
+
+	// Parse claims
+	var claims map[string]interface{}
+	if err := json.Unmarshal(payloadJSON, &claims); err != nil {
+		return &core.TokenInfo{Valid: false}, nil
+	}
+
+	now := time.Now().Unix()
+	// exp
+	if v, ok := claims["exp"]; ok {
+		switch t := v.(type) {
+		case float64:
+			if int64(t) < now {
+				return &core.TokenInfo{Valid: false}, nil
+			}
+		case int64:
+			if t < now {
+				return &core.TokenInfo{Valid: false}, nil
+			}
+		}
+	}
+	// nbf
+	if v, ok := claims["nbf"]; ok {
+		switch t := v.(type) {
+		case float64:
+			if int64(t) > now {
+				return &core.TokenInfo{Valid: false}, nil
+			}
+		case int64:
+			if t > now {
+				return &core.TokenInfo{Valid: false}, nil
+			}
+		}
+	}
+	// iss
+	if s.issuer != "" {
+		if iss, _ := claims["iss"].(string); iss != s.issuer {
+			return &core.TokenInfo{Valid: false}, nil
+		}
+	}
+	// aud
+	if len(s.audience) > 0 {
+		okAud := false
+		if audStr, ok := claims["aud"].(string); ok {
+			for _, a := range s.audience {
+				if a == audStr {
+					okAud = true
+					break
+				}
+			}
+		} else if audArr, ok := claims["aud"].([]interface{}); ok {
+			for _, ai := range audArr {
+				if as, ok := ai.(string); ok {
+					for _, a := range s.audience {
+						if a == as {
+							okAud = true
+							break
+						}
+					}
+				}
+				if okAud {
+					break
+				}
+			}
+		} else {
+			// missing aud but required
+			return &core.TokenInfo{Valid: false}, nil
+		}
+		if !okAud {
+			return &core.TokenInfo{Valid: false}, nil
+		}
+	}
+
+	userID := ""
+	if sub, _ := claims["sub"].(string); sub != "" {
+		userID = sub
+	}
+
+	expireAt := int64(0)
+	if v, ok := claims["exp"]; ok {
+		switch t := v.(type) {
+		case float64:
+			expireAt = int64(t)
+		case int64:
+			expireAt = t
+		}
+	}
+
 	return &core.TokenInfo{
 		Valid:       true,
-		UserID:      token,
+		UserID:      userID,
+		PeerID:      userID,
 		Permissions: []string{},
-		PeerID:      token,
-		ExpireAt:    time.Now().Add(24 * time.Hour).Unix(),
+		ExpireAt:    expireAt,
 	}, nil
 }
 
@@ -1164,10 +1338,14 @@ func NewMetricsCollector(config MetricsConfig, logger core.Logger) (core.Metrics
 	}, nil
 }
 func NewSecurityManager(config SecurityConfig, logger core.Logger) (core.SecurityManager, error) {
-	return &securityManagerImpl{
+	sm := &securityManagerImpl{
 		logger:      logger,
 		tokenExpiry: config.TokenExpiry,
-	}, nil
+		secret:      []byte(config.JWTSecret),
+		issuer:      config.JWTIssuer,
+		audience:    config.JWTAudience,
+	}
+	return sm, nil
 }
 func NewNetworkManager(config NetworkConfig, security core.SecurityManager, eventBus core.EventBus, logger core.Logger) (core.NetworkManager, error) {
 	return &networkManagerImpl{
