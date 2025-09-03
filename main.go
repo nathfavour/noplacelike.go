@@ -140,6 +140,9 @@ func convertLegacyConfig(legacy *config.Config) *platform.PlatformConfig {
 			EncryptionAlgo:   "AES-256-GCM",
 			MaxLoginAttempts: 3,
 			LockoutDuration:  15 * time.Minute,
+			JWTSecret:        legacy.JWTSecret,
+			JWTIssuer:        legacy.JWTIssuer,
+			JWTAudience:      legacy.JWTAudience,
 		},
 
 		Performance: platform.PerformanceConfig{

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -224,6 +225,9 @@ func (s *HTTPService) setupRoutes() {
 	// API routes
 	api := s.router.Group("/api")
 	{
+		// API documentation
+		api.GET("/docs", s.handleAPIDocsUI)
+		api.GET("/docs/json", s.handleAPIDocsJSON)
 		// Platform management
 		platform := api.Group("/platform")
 		{
@@ -376,19 +380,121 @@ func (s *HTTPService) handlePlatformInfo(c *gin.Context) {
 	c.JSON(http.StatusOK, s.platform.Health().Details)
 }
 
-func (s *HTTPService) handleMetrics(c *gin.Context) {
-	format := c.DefaultQuery("format", "json")
+func (s *HTTPService) handleAPIDocsJSON(c *gin.Context) {
+	spec := map[string]interface{}{
+		"openapi": "3.0.3",
+		"info": map[string]interface{}{
+			"title":   "NoPlaceLike Platform API",
+			"version": "v1",
+		},
+		"paths": map[string]interface{}{
+			"/health": map[string]interface{}{
+				"get": map[string]interface{}{
+					"summary":     "Health check",
+					"operationId": "health",
+					"responses": map[string]interface{}{
+						"200": map[string]interface{}{
+							"description": "OK",
+						},
+					},
+				},
+			},
+			"/info": map[string]interface{}{
+				"get": map[string]interface{}{
+					"summary":     "Platform info",
+					"operationId": "info",
+					"responses": map[string]interface{}{
+						"200": map[string]interface{}{
+							"description": "OK",
+						},
+					},
+				},
+			},
+		},
+	}
+	c.JSON(http.StatusOK, spec)
+}
 
-	metrics, err := s.platform.Metrics().Export(format)
+func (s *HTTPService) handleAPIDocsUI(c *gin.Context) {
+	html := `<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>NoPlaceLike API Docs</title>
+    <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
+  </head>
+  <body>
+    <div id="swagger-ui"></div>
+    <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+    <script>
+      window.onload = () => {
+        window.ui = SwaggerUIBundle({
+          url: '/api/docs/json',
+          dom_id: '#swagger-ui',
+        });
+      };
+    </script>
+  </body>
+</html>`
+	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(html))
+}
+
+func (s *HTTPService) handleMetrics(c *gin.Context) {
+	format := c.DefaultQuery("format", "prometheus")
+
+	// Prometheus-like exposition using the JSON export as a source of truth
+	if format == "prometheus" || format == "prom" {
+		data, err := s.platform.Metrics().Export("json")
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		var parsed struct {
+			Counters   map[string]float64            `json:"counters"`
+			Gauges     map[string]float64            `json:"gauges"`
+			Histograms map[string]map[string]float64 `json:"histograms"`
+		}
+		if err := json.Unmarshal(data, &parsed); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to parse metrics"})
+			return
+		}
+
+		var b strings.Builder
+		// Counters
+		b.WriteString("# HELP npl_counter Arbitrary counters\n")
+		b.WriteString("# TYPE npl_counter counter\n")
+		for k, v := range parsed.Counters {
+			fmt.Fprintf(&b, "npl_counter{metric=%q} %v\n", k, v)
+		}
+		// Gauges
+		b.WriteString("# HELP npl_gauge Arbitrary gauges\n")
+		b.WriteString("# TYPE npl_gauge gauge\n")
+		for k, v := range parsed.Gauges {
+			fmt.Fprintf(&b, "npl_gauge{metric=%q} %v\n", k, v)
+		}
+		// Histograms (export count of observations)
+		b.WriteString("# HELP npl_histogram_count Number of observations\n")
+		b.WriteString("# TYPE npl_histogram_count counter\n")
+		for k, obj := range parsed.Histograms {
+			if cnt, ok := obj["count"]; ok {
+				fmt.Fprintf(&b, "npl_histogram_count{metric=%q} %v\n", k, cnt)
+			}
+		}
+
+		c.Data(http.StatusOK, "text/plain; version=0.0.4", []byte(b.String()))
+		return
+	}
+
+	// Fallback to existing formats
+	data, err := s.platform.Metrics().Export(format)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-
 	if format == "json" {
-		c.Data(http.StatusOK, "application/json", metrics)
+		c.Data(http.StatusOK, "application/json", data)
 	} else {
-		c.Data(http.StatusOK, "text/plain", metrics)
+		c.Data(http.StatusOK, "text/plain", data)
 	}
 }
 
@@ -676,6 +782,15 @@ func (s *HTTPService) handlePublishEvent(c *gin.Context) {
 // Middleware functions
 func (s *HTTPService) loggingMiddleware() gin.HandlerFunc {
 	return gin.LoggerWithFormatter(func(param gin.LogFormatterParams) string {
+		// Basic metrics: request counters and latency histogram
+		// Global counter
+		s.platform.Metrics().Counter("http_requests_total").Inc()
+		// Method/Path/Status counters (flattened; label-less)
+		key := fmt.Sprintf("http_requests_total_%s_%s_%d", param.Method, param.Path, param.StatusCode)
+		s.platform.Metrics().Counter(key).Inc()
+		// Latency (milliseconds)
+		s.platform.Metrics().Histogram("http_request_latency_ms").Observe(float64(param.Latency.Milliseconds()))
+
 		return fmt.Sprintf("%s - [%s] \"%s %s %s %d %s \"%s\" %s\"\n",
 			param.ClientIP,
 			param.TimeStamp.Format(time.RFC3339),

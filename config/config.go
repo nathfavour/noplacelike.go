@@ -11,24 +11,27 @@ type Config struct {
 	// Server settings
 	Host           string `json:"host"`
 	Port           int    `json:"port"`
-	
+
 	// Directory settings
 	UploadFolder   string   `json:"uploadFolder"`
 	DownloadFolder string   `json:"downloadFolder"`
 	AudioFolders   []string `json:"audioFolders"`
 	AllowedPaths   []string `json:"allowedPaths"`
 	ShowHidden     bool     `json:"showHidden"`
-	
+
 	// Feature flags
 	EnableShell           bool `json:"enableShell"`
 	EnableAudioStreaming  bool `json:"enableAudioStreaming"`
 	EnableScreenStreaming bool `json:"enableScreenStreaming"`
-	
+
 	// Security settings
-	AllowedCommands     []string `json:"allowedCommands"`
-	MaxFileContentSize  int      `json:"maxFileContentSize"` // in bytes
-	ClipboardHistorySize int     `json:"clipboardHistorySize"`
-	
+	AllowedCommands      []string `json:"allowedCommands"`
+	MaxFileContentSize   int      `json:"maxFileContentSize"` // in bytes
+	ClipboardHistorySize int      `json:"clipboardHistorySize"`
+	JWTSecret            string   `json:"jwtSecret"`
+	JWTIssuer            string   `json:"jwtIssuer"`
+	JWTAudience          []string `json:"jwtAudience"`
+
 	// API version
 	APIVersion string `json:"apiVersion"`
 }
@@ -38,7 +41,7 @@ func DefaultConfig() *Config {
 	homeDir, _ := os.UserHomeDir()
 	uploadDir := filepath.Join(homeDir, "Downloads", "noplacelike-uploads")
 	downloadDir := filepath.Join(homeDir, "Downloads", "noplacelike-downloads")
-	
+
 	return &Config{
 		Host:                "0.0.0.0",
 		Port:                8080,
@@ -53,7 +56,10 @@ func DefaultConfig() *Config {
 		AllowedCommands:     []string{},
 		MaxFileContentSize:   1024 * 1024, // 1MB
 		ClipboardHistorySize: 50,
-		APIVersion:          "v1",
+		JWTSecret:            "change-me",
+		JWTIssuer:            "noplacelike",
+		JWTAudience:          []string{"noplacelike"},
+		APIVersion:           "v1",
 	}
 }
 
