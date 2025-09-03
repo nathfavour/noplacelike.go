@@ -46,7 +46,7 @@ Legacy Surface (present, not default)
 
 P0 — Critical
 - Security
-  - [ ] Implement real token management (JWT) and validation; rotation; clock skew; revocation
+  - [~] Implement real token management (JWT) and validation; rotation; clock skew; revocation (Started: HS256 JWT issuance/validation and /api/platform/token)
   - [ ] RBAC with permissions/roles and route-level enforcement
   - [ ] Optional OAuth2/OIDC provider integration
   - [ ] TLS enablement (certs/keys, auto-redirect HTTP→HTTPS, HSTS tuning)
@@ -58,7 +58,7 @@ P0 — Critical
   - [ ] NAT traversal strategy (UPnP/PCP/ICE/STUN/TURN) if required
   - [ ] Peer health checks, backoff, and failure detection
 - Metrics/Observability
-  - [ ] Prometheus exporter with consistent naming/labels
+  - [~] Prometheus exporter with consistent naming/labels (Started: Prometheus-like text exposition at /api/platform/metrics)
   - [ ] pprof endpoints (protected) and performance profiling guides
   - [ ] OpenTelemetry traces (HTTP handlers, plugin handlers, network IO)
   - [ ] Structured logs with request IDs, correlation IDs, peer IDs
@@ -220,7 +220,8 @@ Platform
 - [x] GET /info
 - [x] GET /api/platform/health
 - [x] GET /api/platform/info
-- [~] GET /api/platform/metrics (json/text) — needs Prometheus exporter
+- [~] GET /api/platform/metrics (Prometheus-like text + json/text) — needs full Prometheus client integration
+- [~] POST /api/platform/token — JWT issuance (HS256) for development/testing
 
 Plugins
 - [x] GET /api/plugins

@@ -234,6 +234,7 @@ func (s *HTTPService) setupRoutes() {
 			platform.GET("/health", s.handlePlatformHealth)
 			platform.GET("/info", s.handlePlatformInfo)
 			platform.GET("/metrics", s.handleMetrics)
+			platform.POST("/token", s.handleIssueToken)
 		}
 
 		// Plugin management
@@ -241,8 +242,8 @@ func (s *HTTPService) setupRoutes() {
 		{
 			plugins.GET("", s.handleListPlugins)
 			plugins.GET("/:name", s.handleGetPlugin)
-			plugins.POST("/:name/start", s.handleStartPlugin)
-			plugins.POST("/:name/stop", s.handleStopPlugin)
+			plugins.POST("/:name/start", s.authMiddleware([]string{"plugins:start"}), s.handleStartPlugin)
+			plugins.POST("/:name/stop", s.authMiddleware([]string{"plugins:stop"}), s.handleStopPlugin)
 			plugins.GET("/:name/health", s.handlePluginHealth)
 		}
 
@@ -267,8 +268,8 @@ func (s *HTTPService) setupRoutes() {
 		{
 			resources.GET("", s.handleListResources)
 			resources.GET("/:id", s.handleGetResource)
-			resources.POST("", s.handleCreateResource)
-			resources.DELETE("/:id", s.handleDeleteResource)
+			resources.POST("", s.authMiddleware([]string{"resources:create"}), s.handleCreateResource)
+			resources.DELETE("/:id", s.authMiddleware([]string{"resources:delete"}), s.handleDeleteResource)
 			resources.GET("/:id/stream", s.handleStreamResource)
 		}
 
@@ -378,6 +379,23 @@ func (s *HTTPService) handlePlatformHealth(c *gin.Context) {
 
 func (s *HTTPService) handlePlatformInfo(c *gin.Context) {
 	c.JSON(http.StatusOK, s.platform.Health().Details)
+}
+
+func (s *HTTPService) handleIssueToken(c *gin.Context) {
+	var req struct {
+		UserID string `json:"userId"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || req.UserID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "userId is required"})
+		return
+	}
+	user := &core.User{ID: req.UserID, Username: req.UserID}
+	token, err := s.platform.SecurityManager().GenerateToken(user)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate token"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"token": token})
 }
 
 func (s *HTTPService) handleAPIDocsJSON(c *gin.Context) {
