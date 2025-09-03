@@ -209,7 +209,21 @@ func (p *Platform) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to start services: %w", err)
 	}
 
-	// Load and start plugins
+	// Mark platform as started before plugin loading so preloaded and discovered plugins auto-start
+	p.started = true
+	p.startTime = time.Now()
+
+	// Start any preloaded plugins
+	for name, plugin := range p.plugins {
+		if err := plugin.Start(ctx); err != nil {
+			p.logger.Warn("Failed to start preloaded plugin",
+				core.Field{Key: "plugin", Value: name},
+				core.Field{Key: "error", Value: err},
+			)
+		}
+	}
+
+	// Load and start plugins from configured directories
 	if err := p.loadPlugins(ctx); err != nil {
 		p.logger.Warn("Failed to load some plugins", core.Field{Key: "error", Value: err})
 	}
@@ -218,9 +232,6 @@ func (p *Platform) Start(ctx context.Context) error {
 	if _, err := p.networkManager.DiscoverPeers(); err != nil {
 		p.logger.Warn("Failed to start peer discovery", core.Field{Key: "error", Value: err})
 	}
-
-	p.started = true
-	p.startTime = time.Now()
 
 	// Publish platform started event
 	event := core.Event{
