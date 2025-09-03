@@ -201,29 +201,38 @@ func NewPlatform(config *PlatformConfig, logger core.Logger) (*Platform, error) 
 
 // Start initializes and starts the platform
 func (p *Platform) Start(ctx context.Context) error {
+	// Avoid holding write lock while starting services to prevent deadlocks with readers.
 	p.mu.Lock()
-	defer p.mu.Unlock()
-
 	if p.started {
+		p.mu.Unlock()
 		return fmt.Errorf("platform already started")
 	}
+	p.mu.Unlock()
 
 	p.logger.Info("Starting NoPlaceLike platform",
 		core.Field{Key: "version", Value: p.version},
 		core.Field{Key: "buildTime", Value: p.buildInfo.BuildTime},
 	)
 
-	// Start core services in order
+	// Start core services (may call back into platform with read locks)
 	if err := p.serviceManager.StartAll(ctx); err != nil {
 		return fmt.Errorf("failed to start services: %w", err)
 	}
 
 	// Mark platform as started before plugin loading so preloaded and discovered plugins auto-start
+	p.mu.Lock()
 	p.started = true
 	p.startTime = time.Now()
 
-	// Start any preloaded plugins
+	// Take a snapshot of preloaded plugins to avoid holding the lock during Start
+	preloaded := make(map[string]core.Plugin, len(p.plugins))
 	for name, plugin := range p.plugins {
+		preloaded[name] = plugin
+	}
+	p.mu.Unlock()
+
+	// Start any preloaded plugins
+	for name, plugin := range preloaded {
 		if err := plugin.Start(ctx); err != nil {
 			p.logger.Warn("Failed to start preloaded plugin",
 				core.Field{Key: "plugin", Value: name},
@@ -684,29 +693,33 @@ type counterImpl struct {
 	value float64
 }
 
-func (c *counterImpl) Inc()               { c.Add(1) }
-func (c *counterImpl) Add(delta float64)  { c.mu.Lock(); c.value += delta; c.mu.Unlock() }
-func (c *counterImpl) Get() float64       { c.mu.RLock(); defer c.mu.RUnlock(); return c.value }
+func (c *counterImpl) Inc()              { c.Add(1) }
+func (c *counterImpl) Add(delta float64) { c.mu.Lock(); c.value += delta; c.mu.Unlock() }
+func (c *counterImpl) Get() float64      { c.mu.RLock(); defer c.mu.RUnlock(); return c.value }
 
 type gaugeImpl struct {
 	mu    sync.RWMutex
 	value float64
 }
 
-func (g *gaugeImpl) Set(v float64)        { g.mu.Lock(); g.value = v; g.mu.Unlock() }
-func (g *gaugeImpl) Inc()                 { g.Add(1) }
-func (g *gaugeImpl) Dec()                 { g.Add(-1) }
-func (g *gaugeImpl) Add(delta float64)    { g.mu.Lock(); g.value += delta; g.mu.Unlock() }
-func (g *gaugeImpl) Sub(delta float64)    { g.Add(-delta) }
-func (g *gaugeImpl) Get() float64         { g.mu.RLock(); defer g.mu.RUnlock(); return g.value }
+func (g *gaugeImpl) Set(v float64)     { g.mu.Lock(); g.value = v; g.mu.Unlock() }
+func (g *gaugeImpl) Inc()              { g.Add(1) }
+func (g *gaugeImpl) Dec()              { g.Add(-1) }
+func (g *gaugeImpl) Add(delta float64) { g.mu.Lock(); g.value += delta; g.mu.Unlock() }
+func (g *gaugeImpl) Sub(delta float64) { g.Add(-delta) }
+func (g *gaugeImpl) Get() float64      { g.mu.RLock(); defer g.mu.RUnlock(); return g.value }
 
 type histogramImpl struct {
-	mu      sync.RWMutex
-	values  []float64
+	mu     sync.RWMutex
+	values []float64
 }
 
-func (h *histogramImpl) Observe(v float64) { h.mu.Lock(); h.values = append(h.values, v); h.mu.Unlock() }
-func (h *histogramImpl) Reset()            { h.mu.Lock(); h.values = nil; h.mu.Unlock() }
+func (h *histogramImpl) Observe(v float64) {
+	h.mu.Lock()
+	h.values = append(h.values, v)
+	h.mu.Unlock()
+}
+func (h *histogramImpl) Reset() { h.mu.Lock(); h.values = nil; h.mu.Unlock() }
 
 type timerInstanceImpl struct {
 	start time.Time
@@ -775,42 +788,58 @@ func (m *metricsCollectorImpl) Stop(ctx context.Context) error {
 	return nil
 }
 func (m *metricsCollectorImpl) IsHealthy() bool {
-	m.mu.RLock(); defer m.mu.RUnlock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	return m.started
 }
 func (m *metricsCollectorImpl) Health() core.HealthStatus {
-	m.mu.RLock(); defer m.mu.RUnlock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	status := core.HealthStatusHealthy
-	if !m.started { status = core.HealthStatusUnhealthy }
-	return core.HealthStatus{ Status: status, Timestamp: time.Now() }
+	if !m.started {
+		status = core.HealthStatusUnhealthy
+	}
+	return core.HealthStatus{Status: status, Timestamp: time.Now()}
 }
 func (m *metricsCollectorImpl) Configuration() core.ConfigSchema {
 	return core.ConfigSchema{Properties: map[string]core.PropertySchema{}}
 }
 func (m *metricsCollectorImpl) Counter(name string) core.Counter {
-	m.mu.Lock(); defer m.mu.Unlock()
-	if c, ok := m.counters[name]; ok { return c }
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if c, ok := m.counters[name]; ok {
+		return c
+	}
 	c := &counterImpl{}
 	m.counters[name] = c
 	return c
 }
 func (m *metricsCollectorImpl) Gauge(name string) core.Gauge {
-	m.mu.Lock(); defer m.mu.Unlock()
-	if g, ok := m.gauges[name]; ok { return g }
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if g, ok := m.gauges[name]; ok {
+		return g
+	}
 	g := &gaugeImpl{}
 	m.gauges[name] = g
 	return g
 }
 func (m *metricsCollectorImpl) Histogram(name string) core.Histogram {
-	m.mu.Lock(); defer m.mu.Unlock()
-	if h, ok := m.histograms[name]; ok { return h }
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if h, ok := m.histograms[name]; ok {
+		return h
+	}
 	h := &histogramImpl{}
 	m.histograms[name] = h
 	return h
 }
 func (m *metricsCollectorImpl) Timer(name string) core.Timer {
-	m.mu.Lock(); defer m.mu.Unlock()
-	if t, ok := m.timers[name]; ok { return t }
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if t, ok := m.timers[name]; ok {
+		return t
+	}
 	h := &histogramImpl{}
 	t := &timerImpl{h: h}
 	m.histograms[name+"_duration_ms"] = h
@@ -829,7 +858,10 @@ func (m *metricsCollectorImpl) Export(format string) ([]byte, error) {
 		s += "\"counters\":{"
 		first := true
 		for k, v := range m.counters {
-			if !first { s += "," } ; first = false
+			if !first {
+				s += ","
+			}
+			first = false
 			s += fmt.Sprintf("%q:%v", k, v.Get())
 		}
 		s += "},"
@@ -837,7 +869,10 @@ func (m *metricsCollectorImpl) Export(format string) ([]byte, error) {
 		s += "\"gauges\":{"
 		first = true
 		for k, v := range m.gauges {
-			if !first { s += "," } ; first = false
+			if !first {
+				s += ","
+			}
+			first = false
 			s += fmt.Sprintf("%q:%v", k, v.Get())
 		}
 		s += "},"
@@ -845,9 +880,14 @@ func (m *metricsCollectorImpl) Export(format string) ([]byte, error) {
 		s += "\"histograms\":{"
 		first = true
 		for k, v := range m.histograms {
-			if !first { s += "," } ; first = false
+			if !first {
+				s += ","
+			}
+			first = false
 			count := 0
-			if v.values != nil { count = len(v.values) }
+			if v.values != nil {
+				count = len(v.values)
+			}
 			s += fmt.Sprintf("%q:{\"count\":%d}", k, count)
 		}
 		s += "}"
@@ -868,7 +908,9 @@ func (m *metricsCollectorImpl) Export(format string) ([]byte, error) {
 	out += " histograms:\n"
 	for k, v := range m.histograms {
 		count := 0
-		if v.values != nil { count = len(v.values) }
+		if v.values != nil {
+			count = len(v.values)
+		}
 		out += fmt.Sprintf("  - %s count=%d\n", k, count)
 	}
 	return []byte(out), nil
@@ -886,14 +928,27 @@ type securityManagerImpl struct {
 }
 
 func (s *securityManagerImpl) Name() string { return "security" }
-func (s *securityManagerImpl) Start(ctx context.Context) error { s.mu.Lock(); s.started = true; s.mu.Unlock(); return nil }
-func (s *securityManagerImpl) Stop(ctx context.Context) error  { s.mu.Lock(); s.started = false; s.mu.Unlock(); return nil }
+func (s *securityManagerImpl) Start(ctx context.Context) error {
+	s.mu.Lock()
+	s.started = true
+	s.mu.Unlock()
+	return nil
+}
+func (s *securityManagerImpl) Stop(ctx context.Context) error {
+	s.mu.Lock()
+	s.started = false
+	s.mu.Unlock()
+	return nil
+}
 func (s *securityManagerImpl) IsHealthy() bool { s.mu.RLock(); defer s.mu.RUnlock(); return s.started }
 func (s *securityManagerImpl) Health() core.HealthStatus {
-	s.mu.RLock(); defer s.mu.RUnlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	status := core.HealthStatusHealthy
-	if !s.started { status = core.HealthStatusUnhealthy }
-	return core.HealthStatus{ Status: status, Timestamp: time.Now() }
+	if !s.started {
+		status = core.HealthStatusUnhealthy
+	}
+	return core.HealthStatus{Status: status, Timestamp: time.Now()}
 }
 func (s *securityManagerImpl) Configuration() core.ConfigSchema {
 	return core.ConfigSchema{Properties: map[string]core.PropertySchema{}}
@@ -1112,14 +1167,30 @@ type networkManagerImpl struct {
 }
 
 func (n *networkManagerImpl) Name() string { return "network" }
-func (n *networkManagerImpl) Start(ctx context.Context) error { n.mu.Lock(); n.started = true; if n.peers == nil { n.peers = map[string]core.Peer{} }; n.mu.Unlock(); return nil }
-func (n *networkManagerImpl) Stop(ctx context.Context) error  { n.mu.Lock(); n.started = false; n.mu.Unlock(); return nil }
+func (n *networkManagerImpl) Start(ctx context.Context) error {
+	n.mu.Lock()
+	n.started = true
+	if n.peers == nil {
+		n.peers = map[string]core.Peer{}
+	}
+	n.mu.Unlock()
+	return nil
+}
+func (n *networkManagerImpl) Stop(ctx context.Context) error {
+	n.mu.Lock()
+	n.started = false
+	n.mu.Unlock()
+	return nil
+}
 func (n *networkManagerImpl) IsHealthy() bool { n.mu.RLock(); defer n.mu.RUnlock(); return n.started }
 func (n *networkManagerImpl) Health() core.HealthStatus {
-	n.mu.RLock(); defer n.mu.RUnlock()
+	n.mu.RLock()
+	defer n.mu.RUnlock()
 	status := core.HealthStatusHealthy
-	if !n.started { status = core.HealthStatusUnhealthy }
-	return core.HealthStatus{ Status: status, Timestamp: time.Now() }
+	if !n.started {
+		status = core.HealthStatusUnhealthy
+	}
+	return core.HealthStatus{Status: status, Timestamp: time.Now()}
 }
 func (n *networkManagerImpl) Configuration() core.ConfigSchema {
 	return core.ConfigSchema{Properties: map[string]core.PropertySchema{}}
@@ -1129,7 +1200,8 @@ func (n *networkManagerImpl) DiscoverPeers() ([]core.Peer, error) {
 	return n.GetPeers(), nil
 }
 func (n *networkManagerImpl) GetPeers() []core.Peer {
-	n.mu.RLock(); defer n.mu.RUnlock()
+	n.mu.RLock()
+	defer n.mu.RUnlock()
 	out := make([]core.Peer, 0, len(n.peers))
 	for _, p := range n.peers {
 		out = append(out, p)
@@ -1155,7 +1227,11 @@ func (n *networkManagerImpl) ConnectToPeer(address string) (core.Peer, error) {
 	return p, nil
 }
 func (n *networkManagerImpl) ListPeers() []core.Peer { return n.GetPeers() }
-func (n *networkManagerImpl) SendMessage(peerID string, message []byte) error { _ = peerID; _ = message; return nil }
+func (n *networkManagerImpl) SendMessage(peerID string, message []byte) error {
+	_ = peerID
+	_ = message
+	return nil
+}
 func (n *networkManagerImpl) BroadcastMessage(message []byte) error { _ = message; return nil }
 
 // Resource manager implementation
@@ -1168,14 +1244,30 @@ type resourceManagerImpl struct {
 }
 
 func (r *resourceManagerImpl) Name() string { return "resources" }
-func (r *resourceManagerImpl) Start(ctx context.Context) error { r.mu.Lock(); r.started = true; if r.resources == nil { r.resources = map[string]core.Resource{} }; r.mu.Unlock(); return nil }
-func (r *resourceManagerImpl) Stop(ctx context.Context) error  { r.mu.Lock(); r.started = false; r.mu.Unlock(); return nil }
+func (r *resourceManagerImpl) Start(ctx context.Context) error {
+	r.mu.Lock()
+	r.started = true
+	if r.resources == nil {
+		r.resources = map[string]core.Resource{}
+	}
+	r.mu.Unlock()
+	return nil
+}
+func (r *resourceManagerImpl) Stop(ctx context.Context) error {
+	r.mu.Lock()
+	r.started = false
+	r.mu.Unlock()
+	return nil
+}
 func (r *resourceManagerImpl) IsHealthy() bool { r.mu.RLock(); defer r.mu.RUnlock(); return r.started }
 func (r *resourceManagerImpl) Health() core.HealthStatus {
-	r.mu.RLock(); defer r.mu.RUnlock()
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	status := core.HealthStatusHealthy
-	if !r.started { status = core.HealthStatusUnhealthy }
-	return core.HealthStatus{ Status: status, Timestamp: time.Now() }
+	if !r.started {
+		status = core.HealthStatusUnhealthy
+	}
+	return core.HealthStatus{Status: status, Timestamp: time.Now()}
 }
 func (r *resourceManagerImpl) Configuration() core.ConfigSchema {
 	return core.ConfigSchema{Properties: map[string]core.PropertySchema{}}
